@@ -1,0 +1,143 @@
+season:
+  SPRING: Primavera
+  SUMMER: Estate
+  AUTUMN: Autunno
+  WINTER: Inverno
+hud:
+  title: "Giorno {day}, Anno {year} — {season}"
+  title_dim: "Giorno {day}, Anno {year} — {season} — {realm}"
+
+cmd:
+  event:
+    no_permission: "&cNon hai il permesso di usare questo comando."
+    usage: "&eUtilizzo: {cmd} <list|info|start|stop> [id] [days]"
+    list:
+      header: "&6Eventi registrati:"
+      item: "&7- &e{id}&7 (&f{name}&7)"
+    started: "&aEvento &e{id}&a forzato all'inizio."
+    stopped: "&cEvento attivo interrotto."
+    no_such_event: "&cNessun evento trovato con id &e{id}&c."
+    no_active: "&7Non c'è nessun evento attivo in questo momento."
+    info: "&6Evento attivo: &e{id}&7 (&f{name}&7), &e{days}&7 giorno/i rimanente/i."
+
+  season:
+    no_permission: "&cNon hai il permesso di usare questo comando."
+
+    info:
+      line: "&bStagione: {season}&7 | Giorno {day}/{max}&3 | Anno {year}"
+
+    set:
+      usage: "&eUtilizzo: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cStagione non valida."
+      success: "&6Stagione impostata su {season}."
+
+    skipday:
+      done: "&6Hai saltato 1 giorno."
+
+    day:
+      usage: "&eUtilizzo: /{label} day <1..{max}>"
+      invalid_number: "&cNumero non valido."
+      success: "&6Giorno impostato su {day} (stagione attuale)."
+
+    year:
+      usage: "&eUso: /{label} year <numero>"
+      invalid_number: "&cNumero dell'anno non valido."
+      success: "&aAnno del calendario impostato a &f{year}&a."
+
+    reload:
+      done: "&aConfigurazioni ricaricate."
+
+    hud:
+      player_only: "&cQuesto comando può essere usato solo da un giocatore."
+      usage: "&eUtilizzo: /{label} hud <fixed|variable|off>"
+      current: "&7Modalità attuale: &b{mode}"
+      invalid: "&cModalità non valida. Usa: &efixed&c, &evariable&c o &eoff&c."
+      mode:
+        fixed: "fisso"
+        variable: "variabile"
+        off: "spento"
+      set:
+        fixed: "&aVisualizzazione HUD statica abilitata."
+        variable: "&aModalità HUD variabile abilitata."
+        off: "&cHUD disabilitato."
+
+    help: "&eUtilizzo: /{label} <info|set|skipday|day|reload|hud>"
+
+realm:
+
+  overworld_title: "&aMondo Principale"
+  returned_from: "&7Hai lasciato &f{name}"
+
+
+guide:
+  title: "Guida alle Stagioni Aeternum"
+
+  book_title: "Guida alle Stagioni Aeternum"
+  book_author: "Aeternum"
+  book_given: "Hai ricevuto la guida alle stagioni."
+
+  current: "Stagione attuale: {season}"
+
+  intro: "Questa guida riassume il meteo, gli eventi, i raccolti e la migrazione animale per ogni stagione."
+
+  section:
+    crops: "Raccolti per stagione"
+    migration: "Migrazione animale"
+    weather: "Meteo tipico"
+
+  crops:
+    SPRING: "Grano, carote, patate, barbabietole e zucche prosperano; un'ottima stagione a tutto tondo."
+    SUMMER: "Meloni, canna da zucchero, cactus e colture resistenti al caldo crescono meglio."
+    AUTUMN: "Zucche, funghi e tuberi; perfetto per grandi raccolti e conservazione."
+    WINTER: "Quasi nulla cresce all'aperto; le serre sono necessarie per l'agricoltura."
+
+  migration:
+    SPRING: "Più pecore, api e conigli nelle pianure fiorite e nelle foreste."
+    SUMMER: "Più pesci tropicali, delfini, tartarughe e axolotl nei mari caldi."
+    AUTUMN: "Volpi, lupi e capre si spostano in taiga e regioni montuose."
+    WINTER: "Lupi e orsi polari dominano i biomi freddi; molti animali da clima caldo svaniscono."
+
+  weather:
+    SPRING: "Pioggia leggera, temperature miti e giornate più lunghe che aiutano i raccolti."
+    SUMMER: "Sole forte, caldo elevato e alcuni temporali violenti."
+    AUTUMN: "Venti freschi, cieli nuvolosi e improvvisi sbalzi di temperatura."
+    WINTER: "Neve frequente, freddo estremo e rischio di congelamento se non protetti."
+
+  footer: "Puoi visualizzare questa guida in qualsiasi momento con /season guide."
+
+items:
+  food:
+    grows_in: "&7Cresce in: &a{seasons}"
+
+    season_clock:
+      name: "&6Orologio delle Stagioni"
+      lore_1: "&7Clic destro per vedere il calendario,"
+      lore_2: "&7gli eventi e il prossimo meteo"
+
+clock:
+  use:
+    header: "&6[Orologio delle Stagioni]"
+    date: "&7Giorno &e{day}&7/&e{max} &7— &a{season} &7(Anno {year})"
+
+    active_event: "&7Evento attivo: &d{event} &7(restano {days} giorno/i)"
+    no_active_event: "&7Evento attivo: &fNessuno"
+
+    next_events:
+      blocked_by_active: "&7Possibile domani: &8(un evento è già attivo)"
+      none: "&7Possibile domani: &fNessuno"
+      single: "&7Domani: &b{event}"
+
+    weather_line: "&7Meteo: {state} &7— cambio in circa ~{minutes}m"
+
+  weather:
+    raining: "&9Pioggia"
+    clear: "&fSereno"
+
+crop:
+  lore:
+    grows_in: "&7Cresce in: {seasons}"
+    any_season: "&7Cresce in qualsiasi stagione"
+    greenhouse_light: "&8Serra sotterranea: luce {light}+"
+
+villager:
+  lazy_tag: "&7[&6Fannullone&7]"

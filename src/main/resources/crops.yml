@@ -1,0 +1,89 @@
+seasonal_crops:
+  enabled: true
+  rain_growth_bonus: 1.0   # mínimo acaba siendo +1 | minimum ends up being +1
+
+  underground_slow_multiplier: 0.8  # Menos penalización bajo tierra | Less penalty for being underground
+  low_light_multiplier: 0.7         # No penalizar si la luz es baja | Do not penalize if light is low
+  required_light: 4                 # No requiere mucha luz | Does not require much light
+
+  greenhouse:
+    enabled: true                  # Invernaderos | Greenhouses
+    max_roof_height: 4
+    radius: 7
+    min_glass_count: 16
+    require_core: false
+    core_block: GLASS
+    winter_bonus: 1.0
+
+    block_types:
+      - GLASS
+      - WHITE_STAINED_GLASS
+      - LIGHT_BLUE_STAINED_GLASS
+
+    debug:
+      enabled: true
+      stick: STICK
+
+  crops:                            # Estaciones permitidas por cultivo | Allowed seasons per crop
+    WHEAT:
+      allowed_seasons: [SPRING, SUMMER]
+    CARROTS:
+      allowed_seasons: [SPRING, SUMMER, AUTUMN]
+    POTATOES:
+      allowed_seasons: [SPRING, SUMMER]
+    BEETROOTS:
+      allowed_seasons: [SPRING, AUTUMN]
+    TORCHFLOWER_CROP:
+      allowed_seasons: [SPRING]
+    PITCHER_CROP:
+      allowed_seasons: [SPRING, SUMMER]
+    MELON_STEM:
+      allowed_seasons: [SUMMER]
+    PUMPKIN_STEM:
+      allowed_seasons: [AUTUMN]
+    SUGAR_CANE:
+      allowed_seasons: [SPRING, SUMMER]
+    CACTUS:
+      allowed_seasons: [SUMMER]
+    BAMBOO:
+      allowed_seasons: [SPRING, SUMMER]
+    BAMBOO_SAPLING:
+      allowed_seasons: [SPRING, SUMMER]
+    SWEET_BERRY_BUSH:
+      allowed_seasons: [SPRING, AUTUMN]
+    CAVE_VINES:
+      allowed_seasons: [SUMMER, AUTUMN]
+    CAVE_VINES_PLANT:
+      allowed_seasons: [SUMMER, AUTUMN]
+    KELP:
+      allowed_seasons: [SPRING, SUMMER]
+    KELP_PLANT:
+      allowed_seasons: [SPRING, SUMMER]
+    SEA_PICKLE:
+      allowed_seasons: [SUMMER]
+    NETHER_WART:
+      allowed_seasons: [AUTUMN, WINTER]
+    CHORUS_FLOWER:
+      allowed_seasons: [SPRING, SUMMER]
+    COCOA:
+      allowed_seasons: [SUMMER]
+    BROWN_MUSHROOM:
+      allowed_seasons: [SUMMER, WINTER]
+    RED_MUSHROOM:
+      allowed_seasons: [SUMMER, WINTER]
+    OAK_SAPLING:
+      allowed_seasons: [SPRING, SUMMER]
+    BIRCH_SAPLING:
+      allowed_seasons: [SPRING, SUMMER]
+    SPRUCE_SAPLING:
+      allowed_seasons: [AUTUMN, WINTER]
+    JUNGLE_SAPLING:
+      allowed_seasons: [SPRING, SUMMER]
+    ACACIA_SAPLING:
+      allowed_seasons: [SPRING, SUMMER]
+    DARK_OAK_SAPLING:
+      allowed_seasons: [SPRING, AUTUMN]
+    MANGROVE_PROPAGULE:
+      allowed_seasons: [SPRING, SUMMER]
+    CHERRY_SAPLING:
+      allowed_seasons: [SPRING]

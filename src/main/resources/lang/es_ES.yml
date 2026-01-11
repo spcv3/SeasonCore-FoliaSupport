@@ -1,0 +1,138 @@
+season:
+  SPRING: Primavera
+  SUMMER: Verano
+  AUTUMN: Otoño
+  WINTER: Invierno
+hud:
+  title: "Día {day}, Año {year} — {season}"
+  title_dim: "Día {day}, Año {year} — {season} — {realm}"
+
+cmd:
+
+  season:
+    no_permission: "&cNo tienes permiso para usar este comando."
+
+    info:
+      line: "&bEstación: {season}&7 | Día {day}/{max}&3 | Año {year}"
+
+    set:
+      usage: "&eUso: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cEstación inválida."
+      success: "&6Estación fijada a {season}."
+
+
+    skipday:
+      done: "&6Has avanzado 1 día."
+
+    day:
+      usage: "&eUso: /{label} day <1..{max}>"
+      invalid_number: "&cNúmero inválido."
+      success: "&6Día fijado a {day} (estación actual)."
+
+    year:
+      usage: "&eUso: /{label} year <número>"
+      invalid_number: "&cNúmero de año inválido."
+      success: "&aAño del calendario establecido en &f{year}&a."
+
+    reload:
+      done: "&aConfiguraciones recargadas."
+
+    hud:
+      player_only: "&cEste comando solo puede usarlo un jugador."
+      usage: "&eUso: /{label} hud <fixed|variable|off>"
+      current: "&7Modo actual: &b{mode}"
+      invalid: "&cModo inválido. Usa: &efixed&c, &evariable&c y &evariable&c."
+      mode:
+        fixed: "fijo"
+        variable: "variable"
+        off: "apagado"
+      set:
+        fixed:    "&aHUD estático activado."
+        variable: "&aHUD variable activado."
+        off: "&cHUD desactivado."
+
+    help: "&eUso: /{label} <info|set|skipday|day|reload|hud>"
+
+realm:
+
+  overworld_title: "&aMundo principal"
+  returned_from: "&7Has salido de &f{name}"
+
+guide:
+  # Título general (se usa tanto en chat como en el libro)
+  title: "Guía de Aeternum Seasons"
+
+  # Título y autor del libro escrito
+  book_title: "Guía de Aeternum Seasons"
+  book_author: "Aeternum"
+  book_given: "Se te ha entregado la guía de estaciones."
+
+  # Línea con la estación actual
+  current: "Estación actual: {season}"
+
+  # Primer párrafo del libro
+  intro: "Esta guía resume el clima, los eventos, los cultivos y la migración de animales para cada estación."
+
+  section:
+    crops: "§0Cultivos por estación"
+    migration: "§0Migración animal"
+    weather: "§0Clima típico"
+
+  crops:
+    SPRING: "Trigo, zanahorias, patatas, remolacha y calabazas prosperan; muy buena época general de cultivo."
+    SUMMER: "Sandías, caña de azúcar, cactus y cultivos que toleran el calor crecen mejor."
+    AUTUMN: "Calabazas, hongos y raíces; ideal para grandes cosechas y almacenamiento."
+    WINTER: "Al aire libre casi nada crece; los invernaderos permiten seguir cultivando."
+
+  migration:
+    SPRING: "Más ovejas, abejas y conejos en praderas y bosques florales."
+    SUMMER: "Más peces tropicales, delfines, tortugas y ajolotes en mares cálidos."
+    AUTUMN: "Zorros, lobos y cabras se concentran en taigas y zonas montañosas."
+    WINTER: "Lobos y osos polares dominan biomas fríos; muchos animales de clima cálido desaparecen."
+
+  weather:
+    SPRING: "Lluvias suaves, clima templado y días más largos que favorecen los cultivos."
+    SUMMER: "Sol intenso, calor fuerte y algunas tormentas violentas."
+    AUTUMN: "Viento fresco, cielos nublados y cambios bruscos de temperatura."
+    WINTER: "Nieve frecuente, frío extremo y riesgo de congelación si no te proteges."
+
+  footer: " usa /seasonguide."
+
+
+items:
+  food:
+    grows_in: "&7Crece en: &a{seasons}"
+
+    season_clock:
+      name: "&6Reloj Estacional"
+      lore_1: "&7Click derecho para ver el calendario"
+      lore_2: "&7eventos y clima próximo"
+
+clock:
+  use:
+    header: "&6[Reloj Estacional]"
+    date: "&7Día &e{day}&7/&e{max} &7— &a{season} &7(Año {year})"
+
+    active_event: "&7Evento activo: &d{event} &7({days} día(s) restantes)"
+    no_active_event: "&7Evento activo: &fNinguno"
+
+    next_events:
+      blocked_by_active: "&7Posible mañana: &8(ya hay un evento activo)"
+      none: "&7Posible mañana: &fNinguno"
+      single: "&7Mañana: &b{event}"
+
+    weather_line: "&7Clima: {state} &7— cambia en ~{minutes}m"
+
+  weather:
+    raining: "&9Lloviendo"
+    clear: "&fDespejado"
+
+
+crop:
+  lore:
+    grows_in: "&7Crece en: {seasons}"
+    any_season: "&7Crece en cualquier estación"
+    greenhouse_light: "&8Invernadero subterráneo: luz {light}+"
+
+villager:
+  lazy_tag: "&7[&6Holgazán&7]"

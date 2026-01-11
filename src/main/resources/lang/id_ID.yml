@@ -1,0 +1,145 @@
+season:
+  SPRING: Musim Semi
+  SUMMER: Musim Panas
+  AUTUMN: Musim Gugur
+  WINTER: Musim Dingin
+hud:
+  title: "Hari {day}, Tahun {year} — {season}"
+  title_dim: "Hari {day}, Tahun {year} — {season} — {realm}"
+
+
+cmd:
+  event:
+    no_permission: "&cAnda tidak memiliki izin untuk menggunakan perintah ini."
+    usage: "&ePenggunaan: {cmd} <list|info|start|stop> [id] [days]"
+    list:
+      header: "&6Acara Terdaftar:"
+      item: "&7- &e{id}&7 (&f{name}&7)"
+    started: "&aAcara &e{id}&a dipaksa untuk dimulai."
+    stopped: "&cAcara aktif dihentikan."
+    no_such_event: "&cTidak ada acara ditemukan dengan id &e{id}&c."
+    no_active: "&7Saat ini tidak ada acara aktif."
+    info: "&6Acara aktif: &e{id}&7 (&f{name}&7), &e{days}&7 hari tersisa."
+
+  season:
+    no_permission: "&cAnda tidak memiliki izin untuk menggunakan perintah ini."
+
+    info:
+      line: "&bMusim: {season}&7 | Hari {day}/{max}&3 | Tahun {year}"
+
+    set:
+      usage: "&ePenggunaan: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cMusim tidak valid."
+      success: "&6Musim diatur ke {season}."
+
+    skipday:
+      done: "&6Anda telah melompati 1 hari."
+
+    day:
+      usage: "&ePenggunaan: /{label} day <1..{max}>"
+      invalid_number: "&cNomor tidak valid."
+      success: "&6Hari diatur ke {day} (musim saat ini)."
+
+    year:
+      usage: "&ePenggunaan: /{label} year <angka>"
+      invalid_number: "&cNomor tahun tidak valid."
+      success: "&aTahun kalender diatur ke &f{year}&a."
+
+    reload:
+      done: "&aKonfigurasi dimuat ulang."
+
+    hud:
+      player_only: "&cPerintah ini hanya dapat digunakan oleh pemain."
+      usage: "&ePenggunaan: /{label} hud <fixed|variable|off>"
+      current: "&7Mode saat ini: &b{mode}"
+      invalid: "&cMode tidak valid. Gunakan: &efixed&c, &evariable&c atau &eoff&c."
+      mode:
+        fixed: "tetap"
+        variable: "variabel"
+        off: "mati"
+      set:
+        fixed: "&aTampilan HUD statis diaktifkan."
+        variable: "&aMode HUD variabel diaktifkan."
+        off: "&cHUD dinonaktifkan."
+
+    help: "&ePenggunaan: /{label} <info|set|skipday|day|reload|hud>"
+
+realm:
+
+  overworld_title: "&aDunia Utama"
+  returned_from: "&7Anda telah meninggalkan &f{name}"
+
+
+guide:
+  title: "Panduan Musim Aeternum"
+
+  book_title: "Panduan Musim Aeternum"
+  book_author: "Aeternum"
+  book_given: "Anda telah menerima panduan musim."
+
+  current: "Musim saat ini: {season}"
+
+  intro: "Panduan ini merangkum cuaca, acara, tanaman, dan migrasi hewan untuk setiap musim."
+
+  section:
+    crops: "Tanaman berdasarkan musim"
+    migration: "Migrasi hewan"
+    weather: "Cuaca khas"
+
+  crops:
+    SPRING: "Gandum, wortel, kentang, bit, dan labu berkembang; musim serba guna yang hebat."
+    SUMMER: "Melon, tebu, kaktus, dan tanaman tahan panas tumbuh paling baik."
+    AUTUMN: "Labu, jamur, dan tanaman akar; sempurna untuk panen besar dan penyimpanan."
+    WINTER: "Hampir tidak ada yang tumbuh di luar; rumah kaca diperlukan untuk bertani."
+
+  migration:
+    SPRING: "Lebih banyak domba, lebah, dan kelinci di padang rumput berbunga dan hutan."
+    SUMMER: "Lebih banyak ikan tropis, lumba-lumba, kura-kura, dan axolotl di laut hangat."
+    AUTUMN: "Rubah, serigala, dan kambing pindah ke taiga dan wilayah pegunungan."
+    WINTER: "Serigala dan beruang kutub mendominasi bioma dingin; banyak hewan iklim hangat menghilang."
+
+  weather:
+    SPRING: "Hujan ringan, suhu sedang, dan hari yang lebih panjang yang membantu tanaman."
+    SUMMER: "Matahari kuat, panas tinggi, dan beberapa badai petir hebat."
+    AUTUMN: "Angin sejuk, langit berawan, dan perubahan suhu mendadak."
+    WINTER: "Salju sering, dingin ekstrem, dan risiko pembekuan jika tidak terlindungi."
+
+  footer: "Anda dapat melihat panduan ini kapan saja dengan /season guide."
+
+items:
+  food:
+    grows_in: "&7Tumbuh di: &a{seasons}"
+
+    season_clock:
+      name: "&6Jam Musim"
+      lore_1: "&7Klik kanan untuk melihat kalender"
+      lore_2: "&7acara dan cuaca berikutnya"
+
+
+clock:
+  use:
+    header: "&6[Season Clock]"
+    date: "&7Hari &e{day}&7/&e{max} &7— &a{season} &7(Tahun {year})"
+
+    active_event: "&7Acara aktif: &d{event} &7({days} hari tersisa)"
+    no_active_event: "&7Acara aktif: &fTidak ada"
+
+    next_events:
+      blocked_by_active: "&7Kemungkinan besok: &8(acara sudah aktif)"
+      none: "&7Kemungkinan besok: &fTidak ada"
+      single: "&7Besok: &b{event}"
+
+    weather_line: "&7Cuaca: {state} &7— berubah dalam ~{minutes}m"
+
+  weather:
+    raining: "&9Hujan"
+    clear: "&fCerah"
+
+crop:
+  lore:
+    grows_in: "&7Tumbuh di: {seasons}"
+    any_season: "&7Tumbuh di musim apa pun"
+    greenhouse_light: "&8Rumah kaca bawah tanah: cahaya {light}+"
+
+villager:
+  lazy_tag: "&7[&6Pemalas&7]"

@@ -1,0 +1,131 @@
+season:
+  SPRING: Spring
+  SUMMER: Summer
+  AUTUMN: Autumn
+  WINTER: Winter
+hud:
+  title: "Day {day}, Year {year} — {season}"
+  title_dim: "Day {day}, Year {year} — {season} — {realm}"
+
+cmd:
+  season:
+    no_permission: "&cYou don't have permission to use this command."
+
+    info:
+      line: "&bSeason: {season}&7 | Day {day}/{max}&3 | Year {year}"
+
+    set:
+      usage: "&eUsage: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cInvalid season."
+      success: "&6Season set to {season}."
+
+    skipday:
+      done: "&6You have skipped 1 day."
+
+    day:
+      usage: "&eUsage: /{label} day <1..{max}>"
+      invalid_number: "&cInvalid number."
+      success: "&6Day set to {day} (current season)."
+
+    year:
+      usage: "&eUsage: /{label} year <number>"
+      invalid_number: "&cInvalid year number."
+      success: "&aCalendar year set to &f{year}&a."
+
+    reload:
+      done: "&aConfigurations reloaded."
+
+    hud:
+      player_only: "&cThis command can only be used by a player."
+      usage: "&eUsage: /{label} hud <fixed|variable|off>"
+      current: "&7Current mode: &b{mode}"
+      invalid: "&cInvalid mode. Use: &efixed&c, &evariable&c or &eoff&c."
+      mode:
+        fixed: "fixed"
+        variable: "variable"
+        off: "off"
+      set:
+        fixed: "&aStatic HUD display enabled."
+        variable: "&aVariable HUD mode enabled."
+        off: "&cHUD disabled."
+
+    help: "&eUsage: /{label} <info|set|skipday|day|reload|hud>"
+
+realm:
+
+  overworld_title: "&aMain world"
+  returned_from: "&7You have left &f{name}"
+
+
+guide:
+  title: "Aeternum Seasons Guide"
+
+  book_title: "Aeternum Seasons Guide"
+  book_author: "Aeternum"
+  book_given: "You have received the seasons guide."
+
+  current: "Current season: {season}"
+
+  intro: "This guide summarizes weather, events, crops and animal migration for each season."
+
+  section:
+    crops: "Crops by season"
+    migration: "Animal migration"
+    weather: "Typical weather"
+
+  crops:
+    SPRING: "Wheat, carrots, potatoes, beetroot and pumpkins thrive; a great all-around season."
+    SUMMER: "Melons, sugar cane, cactus and heat-tolerant crops grow best."
+    AUTUMN: "Pumpkins, mushrooms and root crops; perfect for big harvests and storage."
+    WINTER: "Almost nothing grows outdoors; greenhouses are required for farming."
+
+  migration:
+    SPRING: "More sheep, bees and rabbits in flowery plains and forests."
+    SUMMER: "More tropical fish, dolphins, turtles and axolotls in warm seas."
+    AUTUMN: "Foxes, wolves and goats move into taigas and mountain regions."
+    WINTER: "Wolves and polar bears dominate cold biomes; many warm-climate animals vanish."
+
+  weather:
+    SPRING: "Light rain, mild temperatures and longer days that help crops."
+    SUMMER: "Strong sun, high heat and some violent thunderstorms."
+    AUTUMN: "Cool winds, cloudy skies and sudden temperature shifts."
+    WINTER: "Frequent snow, extreme cold and risk of freezing if unprotected."
+
+  footer: "You can view this guide anytime with /season guide."
+
+items:
+  food:
+    grows_in: "&7Grows in: &a{seasons}"
+
+    season_clock:
+      name: "&6Season Clock"
+      lore_1: "&7Right-click to view the calendar,"
+      lore_2: "&7events and upcoming weather"
+
+clock:
+  use:
+    header: "&6[Season Clock]"
+    date: "&7Day &e{day}&7/&e{max} &7— &a{season} &7(Year {year})"
+
+    active_event: "&7Active event: &d{event} &7({days} day(s) left)"
+    no_active_event: "&7Active event: &fNone"
+
+    next_events:
+      blocked_by_active: "&7Possible tomorrow: &8(an event is already active)"
+      none: "&7Possible tomorrow: &fNone"
+      single: "&7Tomorrow: &b{event}"
+
+    weather_line: "&7Weather: {state} &7— change in ~{minutes}m"
+
+  weather:
+    raining: "&9Raining"
+    clear: "&fClear"
+
+crop:
+  lore:
+    grows_in: "&7Grows in: {seasons}"
+    any_season: "&7Grows in any season"
+    greenhouse_light: "&8Underground greenhouse: light {light}+"
+
+villager:
+  lazy_tag: "&7[&6Lazy&7]"

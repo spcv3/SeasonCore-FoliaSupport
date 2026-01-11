@@ -1,0 +1,143 @@
+season:
+  SPRING: İlkbahar
+  SUMMER: Yaz
+  AUTUMN: Sonbahar
+  WINTER: Kış
+hud:
+  title: "Gün {day}, Yıl {year} — {season}"
+  title_dim: "Gün {day}, Yıl {year} — {season} — {realm}"
+
+realm:
+
+  overworld_title: "&aAna Dünya"
+  returned_from: "&7Şuradan ayrıldınız: &f{name}"
+
+cmd:
+  event:
+    no_permission: "&cBu komutu kullanma izniniz yok."
+    usage: "&eKullanım: {cmd} <list|info|start|stop> [id] [days]"
+    list:
+      header: "&6Kayıtlı etkinlikler:"
+      item: "&7- &e{id}&7 (&f{name}&7)"
+    started: "&aEtkinlik &e{id}&a başlamaya zorlandı."
+    stopped: "&cAktif etkinlik durduruldu."
+    no_such_event: "&e{id}&c kimliğine sahip hiçbir etkinlik bulunamadı."
+    no_active: "&7Şu anda aktif bir etkinlik yok."
+    info: "&6Aktif etkinlik: &e{id}&7 (&f{name}&7), kalan &e{days}&7 gün."
+
+  season:
+    no_permission: "&cBu komutu kullanma izniniz yok."
+
+    info:
+      line: "&bMevsim: {season}&7 | Gün {day}/{max}&3 | Yıl {year}"
+
+    set:
+      usage: "&eKullanım: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cGecersiz mevsim."
+      success: "&6Mevsim {season} olarak ayarlandı."
+
+    skipday:
+      done: "&61 gün atladınız."
+
+    day:
+      usage: "&eKullanım: /{label} day <1..{max}>"
+      invalid_number: "&cGecersiz sayı."
+      success: "&6Gün {day} olarak ayarlandı (mevcut mevsim)."
+
+    year:
+      usage: "&eKullanım: /{label} year <sayı>"
+      invalid_number: "&cGeçersiz yıl numarası."
+      success: "&aTakvim yılı &f{year}&a olarak ayarlandı."
+
+    reload:
+      done: "&aYapılandırmalar yeniden yüklendi."
+
+    hud:
+      player_only: "&cBu komut sadece bir oyuncu tarafından kullanılabilir."
+      usage: "&eKullanım: /{label} hud <fixed|variable|off>"
+      current: "&7Mevcut mod: &b{mode}"
+      invalid: "&cGecersiz mod. Kullanın: &efixed&c, &evariable&c veya &eoff&c."
+      mode:
+        fixed: "sabit"
+        variable: "değişken"
+        off: "kapalı"
+      set:
+        fixed: "&aStatik HUD gösterimi etkinleştirildi."
+        variable: "&aDeğişken HUD modu etkinleştirildi."
+        off: "&cHUD devre dışı bırakıldı."
+
+    help: "&eKullanım: /{label} <info|set|skipday|day|reload|hud>"
+
+guide:
+  title: "Aeternum Mevsimler Rehberi"
+
+  book_title: "Aeternum Mevsimler Rehberi"
+  book_author: "Aeternum"
+  book_given: "Mevsimler rehberini aldınız."
+
+  current: "Mevcut mevsim: {season}"
+
+  intro: "Bu rehber, her mevsim için hava durumu, etkinlikler, ürünler ve hayvan göçlerini özetlemektedir."
+
+  section:
+    crops: "Mevsime Göre Ürünler"
+    migration: "Hayvan Göçü"
+    weather: "Tipik Hava Durumu"
+
+  crops:
+    SPRING: "Buğday, havuç, patates, kırmızı pancar ve balkabağı gelişir; çok yönlü harika bir mevsim."
+    SUMMER: "Kavun, şeker kamışı, kaktüs ve sıcağa dayanıklı ürünler en iyi şekilde büyür."
+    AUTUMN: "Balkabağı, mantar ve kök sebzeler; büyük hasatlar ve depolama için mükemmel."
+    WINTER: "Dışarıda neredeyse hiçbir şey büyümez; çiftçilik için seralar gereklidir."
+
+  migration:
+    SPRING: "Çiçekli ovalarda ve ormanlarda daha fazla koyun, arı ve tavşan."
+    SUMMER: "Sıcak denizlerde daha fazla tropikal balık, yunus, kaplumbağa ve aksolotl."
+    AUTUMN: "Tilkiler, kurtlar ve keçiler taygalara ve dağlık bölgelere göç eder."
+    WINTER: "Kurtlar ve kutup ayıları soğuk biyomlara hakim olur; sıcak iklim hayvanlarının çoğu kaybolur."
+
+  weather:
+    SPRING: "Hafif yağmur, ılıman sıcaklıklar ve ürünlere yardımcı olan daha uzun günler."
+    SUMMER: "Güçlü güneş, yüksek sıcaklık ve bazı şiddetli fırtınalar."
+    AUTUMN: "Serin rüzgarlar, bulutlu gökyüzü ve ani sıcaklık değişimleri."
+    WINTER: "Sık kar yağışı, aşırı soğuk ve korumasız kalındığında donma riski."
+
+  footer: "Bu rehberi istediğiniz zaman /season guide ile görüntüleyebilirsiniz."
+
+items:
+  food:
+    grows_in: "&7Büyür: &a{seasons}"
+
+    season_clock:
+      name: "&6Mevsim Saati"
+      lore_1: "&7Takvimi, etkinlikleri ve"
+      lore_2: "&7yaklaşan havayı görmek için sağ tıklayın"
+
+clock:
+  use:
+    header: "&6[Mevsim Saati]"
+    date: "&7Gün &e{day}&7/&e{max} &7— &a{season} &7(Yıl {year})"
+
+    active_event: "&7Aktif etkinlik: &d{event} &7(kalan {days} gün)"
+    no_active_event: "&7Aktif etkinlik: &fYok"
+
+    next_events:
+      blocked_by_active: "&7Yarın olası: &8(bir etkinlik zaten aktif)"
+      none: "&7Yarın olası: &fYok"
+      single: "&7Yarın: &b{event}"
+
+    weather_line: "&7Hava Durumu: {state} &7— değişim ~{minutes}d içinde"
+
+  weather:
+    raining: "&9Yağmurlu"
+    clear: "&fAçık"
+
+crop:
+  lore:
+    grows_in: "&7Büyür: {seasons}"
+    any_season: "&7Her mevsim büyür"
+    greenhouse_light: "&8Yeraltı serası: ışık {light}+"
+
+
+villager:
+  lazy_tag: "&7[&6Tembel&7]"

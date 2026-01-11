@@ -1,0 +1,134 @@
+season:
+  SPRING: Primavera
+  SUMMER: Verão
+  AUTUMN: Outono
+  WINTER: Inverno
+hud:
+  title: "Dia {day}, Ano {year} — {season}"
+  title_dim: "Dia {day}, Ano {year} — {season} — {realm}"
+
+realm:
+
+  overworld_title: "&aMundo Principal"
+  returned_from: "&7Você deixou &f{name}"
+
+
+cmd:
+
+  season:
+    no_permission: "&cVocê não tem permissão para usar este comando."
+
+    info:
+      line: "&bEstação: {season}&7 | Dia {day}/{max}&3 | Ano {year}"
+
+    set:
+      usage: "&eUso: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cEstação inválida."
+      success: "&6Estação definida para {season}."
+
+    skipday:
+      done: "&6Você pulou 1 dia."
+
+    day:
+      usage: "&eUso: /{label} day <1..{max}>"
+      invalid_number: "&cNúmero inválido."
+      success: "&6Dia definido para {day} (estação atual)."
+
+    year:
+      usage: "&eUso: /{label} year <número>"
+      invalid_number: "&cNúmero do ano inválido."
+      success: "&aAno do calendário definido para &f{year}&a."
+
+    reload:
+      done: "&aConfigurações recarregadas."
+
+    hud:
+      player_only: "&cEste comando só pode ser usado por um jogador."
+      usage: "&eUso: /{label} hud <fixed|variable|off>"
+      current: "&7Modo atual: &b{mode}"
+      invalid: "&cModo inválido. Use: &efixed&c, &evariable&c ou &eoff&c."
+      mode:
+        fixed: "fixo"
+        variable: "variável"
+        off: "desligado"
+      set:
+        fixed: "&aExibição HUD estática ativada."
+        variable: "&aModo HUD variável ativado."
+        off: "&cHUD desativado."
+
+    help: "&eUso: /{label} <info|set|skipday|day|reload|hud>"
+
+
+guide:
+  title: "Guia das Estações Aeternum"
+
+  book_title: "Guia das Estações Aeternum"
+  book_author: "Aeternum"
+  book_given: "Você recebeu o guia das estações."
+
+  current: "Estação atual: {season}"
+
+  intro: "Este guia resume o clima, eventos, plantações e migração animal para cada estação."
+
+  section:
+    crops: "Plantações por estação"
+    migration: "Migração animal"
+    weather: "Clima típico"
+
+  crops:
+    SPRING: "Trigo, cenouras, batatas, beterrabas e abóboras prosperam; uma ótima estação versátil."
+    SUMMER: "Melões, cana-de-açúcar, cactos e culturas tolerantes ao calor crescem melhor."
+    AUTUMN: "Abóboras, cogumelos e culturas de raiz; perfeito para grandes colheitas e armazenamento."
+    WINTER: "Quase nada cresce ao ar livre; estufas são necessárias para a agricultura."
+
+  migration:
+    SPRING: "Mais ovelhas, abelhas e coelhos em planícies floridas e florestas."
+    SUMMER: "Mais peixes tropicais, golfinhos, tartarugas e axolotls em mares quentes."
+    AUTUMN: "Raposas, lobos e cabras se movem para taigas e regiões montanhosas."
+    WINTER: "Lobos e ursos polares dominam biomas frios; muitos animais de clima quente desaparecem."
+
+  weather:
+    SPRING: "Chuva leve, temperaturas amenas e dias mais longos que ajudam as plantações."
+    SUMMER: "Sol forte, calor elevado e algumas tempestades violentas."
+    AUTUMN: "Ventos frios, céu nublado e mudanças repentinas de temperatura."
+    WINTER: "Neve frequente, frio extremo e risco de congelamento se desprotegido."
+
+  footer: "Você pode ver este guia a qualquer momento com /season guide."
+
+items:
+  food:
+    grows_in: "&7Cresce em: &a{seasons}"
+
+    season_clock:
+      name: "&6Relógio Estacional"
+      lore_1: "&7Clique direito para ver o calendário,"
+      lore_2: "&7eventos e clima próximo"
+
+clock:
+  use:
+    header: "&6[Relógio das Estações]"
+    date: "&7Dia &e{day}&7/&e{max} &7— &a{season} &7(Ano {year})"
+
+    active_event: "&7Evento ativo: &d{event} &7({days} dia(s) restante(s))"
+    no_active_event: "&7Evento ativo: &fNenhum"
+
+    next_events:
+      blocked_by_active: "&7Possível amanhã: &8(um evento já está ativo)"
+      none: "&7Possível amanhã: &fNenhum"
+      single: "&7Amanhã: &b{event}"
+
+    weather_line: "&7Clima: {state} &7— mudança em ~{minutes}m"
+
+  weather:
+    raining: "&9Chuva"
+    clear: "&fLimpo"
+
+crop:
+  lore:
+    grows_in: "&7Cresce em: {seasons}"
+    any_season: "&7Cresce em qualquer estação"
+    greenhouse_light: "&8Estufa subterrânea: luz {light}+"
+
+villager:
+  lazy_tag: "&7[&6Preguiçoso&7]"
+

@@ -1,0 +1,30 @@
+plugins { id 'java' }
+
+group = 'Kinkin.aeternum'
+version = '1.8'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
+    // 🔹 Repo de WorldGuard / WorldEdit
+    maven { url = 'https://maven.enginehub.org/repo/' }
+}
+
+dependencies {
+    // lo que ya tengas...
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+    compileOnly 'me.clip:placeholderapi:2.11.5'
+
+    // 🔹 WorldGuard (incluye las clases que estás usando)
+    compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.9'
+}
+
+processResources {
+    filesMatching('plugin.yml') { expand version: project.version }
+}

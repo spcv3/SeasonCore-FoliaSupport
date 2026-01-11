@@ -1,0 +1,130 @@
+season:
+  SPRING: Frühling
+  SUMMER: Sommer
+  AUTUMN: Herbst
+  WINTER: Winter
+hud:
+  title: "Tag {day}, Jahr {year} — {season}"
+  title_dim: "Tag {day}, Jahr {year} — {season} — {realm}"
+
+cmd:
+  season:
+    no_permission: "&cDu hast keine Berechtigung für diesen Befehl."
+
+    info:
+      line: "&bJahreszeit: {season}&7 | Tag {day}/{max}&3 | Jahr {year}"
+
+    set:
+      usage: "&eVerwendung: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cUngültige Jahreszeit."
+      success: "&6Jahreszeit auf {season} gesetzt."
+
+    skipday:
+      done: "&6Du hast 1 Tag übersprungen."
+
+    day:
+      usage: "&eVerwendung: /{label} day <1..{max}>"
+      invalid_number: "&cUngültige Zahl."
+      success: "&6Tag auf {day} gesetzt (aktuelle Jahreszeit)."
+
+    year:
+      usage: "&eVerwendung: /{label} year <nummer>"
+      invalid_number: "&cUngültige Jahreszahl."
+      success: "&aKalenderjahr auf &f{year}&a festgelegt."
+
+    reload:
+      done: "&aKonfigurationen neu geladen."
+
+    hud:
+      player_only: "&cDieser Befehl kann nur von einem Spieler verwendet werden."
+      usage: "&eVerwendung: /{label} hud <fixed|variable|off>"
+      current: "&7Aktueller Modus: &b{mode}"
+      invalid: "&cUngültiger Modus. Verwende: &efixed&c, &evariable&c oder &eoff&c."
+      mode:
+        fixed: "fest"
+        variable: "variabel"
+        off: "aus"
+      set:
+        fixed: "&aStatische HUD-Anzeige aktiviert."
+        variable: "&aVariabler HUD-Modus aktiviert."
+        off: "&cHUD deaktiviert."
+
+    help: "&eVerwendung: /{label} <info|set|skipday|day|reload|hud>"
+
+realm:
+
+  overworld_title: "&aHauptwelt"
+  returned_from: "&7Du hast &f{name} verlassen"
+
+guide:
+  title: "Aeternum Jahreszeiten-Anleitung"
+
+  book_title: "Aeternum Jahreszeiten-Anleitung"
+  book_author: "Aeternum"
+  book_given: "Du hast die Jahreszeiten-Anleitung erhalten."
+
+  current: "Aktuelle Jahreszeit: {season}"
+
+  intro: "Diese Anleitung fasst Wetter, Ereignisse, Pflanzen und Tiermigration für jede Jahreszeit zusammen."
+
+  section:
+    crops: "Pflanzen nach Jahreszeit"
+    migration: "Tiermigration"
+    weather: "Typisches Wetter"
+
+  crops:
+    SPRING: "Weizen, Karotten, Kartoffeln, Rote Bete und Kürbisse gedeihen; eine großartige Allround-Jahreszeit."
+    SUMMER: "Melonen, Zuckerrohr, Kakteen und hitzetolerante Pflanzen wachsen am besten."
+    AUTUMN: "Kürbisse, Pilze und Wurzelgemüse; perfekt für große Ernten und Lagerung."
+    WINTER: "Fast nichts wächst im Freien; Gewächshäuser sind für die Landwirtschaft erforderlich."
+
+  migration:
+    SPRING: "Mehr Schafe, Bienen und Kaninchen in blühenden Ebenen und Wäldern."
+    SUMMER: "Mehr tropische Fische, Delfine, Schildkröten und Axolotl in warmen Meeren."
+    AUTUMN: "Füchse, Wölfe und Ziegen ziehen in Taigas und Bergregionen."
+    WINTER: "Wölfe und Eisbären dominieren kalte Biome; viele Tiere aus warmen Klimazonen verschwinden."
+
+  weather:
+    SPRING: "Leichter Regen, milde Temperaturen und längere Tage, die den Pflanzen helfen."
+    SUMMER: "Starke Sonne, große Hitze und einige heftige Gewitter."
+    AUTUMN: "Kühle Winde, bewölkter Himmel und plötzliche Temperaturschwankungen."
+    WINTER: "Häufiger Schnee, extreme Kälte und die Gefahr des Erfrierens, wenn man ungeschützt ist."
+
+  footer: "Du kannst diese Anleitung jederzeit mit /season guide einsehen."
+
+items:
+  food:
+    grows_in: "&7Wächst in: &a{seasons}"
+
+    season_clock:
+      name: "&6Jahreszeitenuhr"
+      lore_1: "&7Rechtsklick, um den Kalender"
+      lore_2: "&7Ereignisse und das bevorstehende Wetter zu sehen"
+
+clock:
+  use:
+    header: "&6[Jahreszeitenuhr]"
+    date: "&7Tag &e{day}&7/&e{max} &7— &a{season} &7(Jahr {year})"
+
+    active_event: "&7Aktives Ereignis: &d{event} &7(noch {days} Tag(e))"
+    no_active_event: "&7Aktives Ereignis: &fKeines"
+
+    next_events:
+      blocked_by_active: "&7Möglich morgen: &8(ein Ereignis ist bereits aktiv)"
+      none: "&7Möglich morgen: &fKeines"
+      single: "&7Morgen: &b{event}"
+
+    weather_line: "&7Wetter: {state} &7— Änderung in ~{minutes}m"
+
+  weather:
+    raining: "&9Regen"
+    clear: "&fKlar"
+
+crop:
+  lore:
+    grows_in: "&7Wächst in: {seasons}"
+    any_season: "&7Wächst in jeder Jahreszeit"
+    greenhouse_light: "&8Unterirdisches Gewächshaus: Licht {light}+"
+
+villager:
+  lazy_tag: "&7[&6Faulpelz&7]"

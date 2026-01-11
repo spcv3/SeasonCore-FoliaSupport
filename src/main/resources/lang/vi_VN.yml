@@ -1,0 +1,143 @@
+season:
+  SPRING: Mùa Xuân
+  SUMMER: Mùa Hè
+  AUTUMN: Mùa Thu
+  WINTER: Mùa Đông
+hud:
+  title: "Ngày {day}, Năm {year} — {season}"
+  title_dim: "Ngày {day}, Năm {year} — {season} — {realm}"
+
+realm:
+
+  overworld_title: "&aThế giới chính"
+  returned_from: "&7Bạn đã rời &f{name}"
+
+cmd:
+  event:
+    no_permission: "&cBạn không có quyền sử dụng lệnh này."
+    usage: "&eCách dùng: {cmd} <list|info|start|stop> [id] [days]"
+    list:
+      header: "&6Sự kiện Đã Đăng ký:"
+      item: "&7- &e{id}&7 (&f{name}&7)"
+    started: "&aSự kiện &e{id}&a bị buộc bắt đầu."
+    stopped: "&cSự kiện đang hoạt động đã dừng."
+    no_such_event: "&cKhông tìm thấy sự kiện nào có id &e{id}&c."
+    no_active: "&7Hiện tại không có sự kiện nào đang hoạt động."
+    info: "&6Sự kiện đang hoạt động: &e{id}&7 (&f{name}&7), còn &e{days}&7 ngày."
+
+  season:
+    no_permission: "&cBạn không có quyền sử dụng lệnh này."
+
+    info:
+      line: "&bMùa: {season}&7 | Ngày {day}/{max}&3 | Năm {year}"
+
+    set:
+      usage: "&eCách dùng: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cMùa không hợp lệ."
+      success: "&6Mùa đã được đặt thành {season}."
+
+    skipday:
+      done: "&6Bạn đã bỏ qua 1 ngày."
+
+    day:
+      usage: "&eCách dùng: /{label} day <1..{max}>"
+      invalid_number: "&cSố không hợp lệ."
+      success: "&6Ngày được đặt thành {day} (mùa hiện tại)."
+
+    year:
+      usage: "&eSử dụng: /{label} year <số>"
+      invalid_number: "&cSố năm không hợp lệ."
+      success: "&aNăm lịch đã được đặt thành &f{year}&a."
+
+    reload:
+      done: "&aCấu hình đã được tải lại."
+
+    hud:
+      player_only: "&cLệnh này chỉ có thể được sử dụng bởi người chơi."
+      usage: "&eCách dùng: /{label} hud <fixed|variable|off>"
+      current: "&7Chế độ hiện tại: &b{mode}"
+      invalid: "&cChế độ không hợp lệ. Sử dụng: &efixed&c, &evariable&c hoặc &eoff&c."
+      mode:
+        fixed: "cố định"
+        variable: "biến đổi"
+        off: "tắt"
+      set:
+        fixed: "&aHiển thị HUD tĩnh đã được bật."
+        variable: "&aChế độ HUD biến đổi đã được bật."
+        off: "&cHUD đã bị tắt."
+
+    help: "&eCách dùng: /{label} <info|set|skipday|day|reload|hud>"
+
+
+guide:
+  title: "Hướng dẫn Mùa Aeternum"
+
+  book_title: "Hướng dẫn Mùa Aeternum"
+  book_author: "Aeternum"
+  book_given: "Bạn đã nhận được hướng dẫn về mùa."
+
+  current: "Mùa hiện tại: {season}"
+
+  intro: "Hướng dẫn này tóm tắt thời tiết, sự kiện, cây trồng và sự di cư của động vật cho mỗi mùa."
+
+  section:
+    crops: "Cây trồng theo mùa"
+    migration: "Di cư của động vật"
+    weather: "Thời tiết điển hình"
+
+  crops:
+    SPRING: "Lúa mì, cà rốt, khoai tây, củ dền và bí đỏ phát triển mạnh; một mùa tuyệt vời toàn diện."
+    SUMMER: "Dưa, mía, xương rồng và cây trồng chịu nhiệt phát triển tốt nhất."
+    AUTUMN: "Bí đỏ, nấm và cây trồng lấy củ; hoàn hảo cho vụ mùa lớn và lưu trữ."
+    WINTER: "Hầu như không có gì phát triển ngoài trời; cần có nhà kính để trồng trọt."
+
+  migration:
+    SPRING: "Nhiều cừu, ong và thỏ hơn ở đồng bằng hoa và rừng."
+    SUMMER: "Nhiều cá nhiệt đới, cá heo, rùa và axolotl hơn ở biển ấm."
+    AUTUMN: "Cáo, sói và dê di chuyển vào taiga và các vùng núi."
+    WINTER: "Sói và gấu bắc cực thống trị các quần xã sinh vật lạnh; nhiều động vật khí hậu ấm áp biến mất."
+
+  weather:
+    SPRING: "Mưa nhẹ, nhiệt độ ôn hòa và ngày dài hơn giúp cây trồng."
+    SUMMER: "Nắng gắt, nhiệt độ cao và một số cơn dông dữ dội."
+    AUTUMN: "Gió mát, bầu trời nhiều mây và thay đổi nhiệt độ đột ngột."
+    WINTER: "Tuyết rơi thường xuyên, lạnh cực độ và nguy cơ bị đóng băng nếu không được bảo vệ."
+
+  footer: "Bạn có thể xem hướng dẫn này bất cứ lúc nào với /season guide."
+
+items:
+  food:
+    grows_in: "&7Phát triển trong: &a{seasons}"
+
+    season_clock:
+      name: "&6Đồng hồ Mùa"
+      lore_1: "&7Nhấp chuột phải để xem lịch,"
+      lore_2: "&7sự kiện và thời tiết sắp tới"
+
+clock:
+  use:
+    header: "&6[Đồng hồ Mùa]"
+    date: "&7Ngày &e{day}&7/&e{max} &7— &a{season} &7(Năm {year})"
+
+    active_event: "&7Sự kiện đang hoạt động: &d{event} &7(còn {days} ngày)"
+    no_active_event: "&7Sự kiện đang hoạt động: &fKhông có"
+
+    next_events:
+      blocked_by_active: "&7Có thể xảy ra vào ngày mai: &8(một sự kiện đã hoạt động)"
+      none: "&7Có thể xảy ra vào ngày mai: &fKhông có"
+      single: "&7Ngày mai: &b{event}"
+
+    weather_line: "&7Thời tiết: {state} &7— thay đổi trong ~{minutes}m"
+
+  weather:
+    raining: "&9Mưa"
+    clear: "&fTrong lành"
+
+crop:
+  lore:
+    grows_in: "&7Phát triển trong: {seasons}"
+    any_season: "&7Phát triển trong bất kỳ mùa nào"
+    greenhouse_light: "&8Nhà kính dưới lòng đất: ánh sáng {light}+"
+
+villager:
+  lazy_tag: "&7[&6Lười biếng&7]"

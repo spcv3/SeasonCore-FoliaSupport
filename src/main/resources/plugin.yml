@@ -1,0 +1,37 @@
+name: SeasonsCore
+main: Kinkin.aeternum.AeternumSeasonsPlugin
+version: ${1.8}
+api-version: '1.21'
+author: Kinkin
+
+softdepend:
+  - PlaceholderAPI
+  - WorldGuard
+
+commands:
+  season:
+    description: Season admin & info
+    usage: /season <info|set|skipday|day|year|reload|hud>
+
+  asevent:
+    description: Control y pruebas de eventos estacionales
+    usage: /asevent <list|info|start|stop>
+    permission: aeternum.command.base
+    permission-message: "&cNo tienes permiso para usar este comando."
+
+  seasonguide:
+    description: "Muestra la guía de SeasonsCore"
+    usage: "/seasonguide"
+
+permissions:
+  aeternum.command.base:   { default: op }
+  aeternum.command.info:   { default: true }
+  aeternum.command.hud:    { default: true }
+  aeternum.command.set:    { default: op }
+  aeternum.command.skip:   { default: op }
+  aeternum.command.day:    { default: op }
+  aeternum.command.reload: { default: op }
+
+  aeternum.command.year:
+    description: "Cambiar el año del calendario de SeasonsCore"
+    default: op

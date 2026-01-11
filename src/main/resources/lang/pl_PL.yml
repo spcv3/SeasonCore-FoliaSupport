@@ -1,0 +1,132 @@
+season:
+  SPRING: Wiosna
+  SUMMER: Lato
+  AUTUMN: Jesień
+  WINTER: Zima
+hud:
+  title: "Dzień {day}, Rok {year} — {season}"
+  title_dim: "Dzień {day}, Rok {year} — {season} — {realm}"
+
+cmd:
+
+  season:
+    no_permission: "&cNie masz uprawnień do użycia tej komendy."
+
+    info:
+      line: "&bPora roku: {season}&7 | Dzień {day}/{max}&3 | Rok {year}"
+
+    set:
+      usage: "&eUżycie: /{label} set <SPRING|SUMMER|AUTUMN|WINTER>"
+      invalid: "&cNieprawidłowa pora roku."
+      success: "&6Pora roku ustawiona na {season}."
+
+    skipday:
+      done: "&6Pominąłeś 1 dzień."
+
+    day:
+      usage: "&eUżycie: /{label} day <1..{max}>"
+      invalid_number: "&cNieprawidłowy numer."
+      success: "&6Dzień ustawiony na {day} (obecna pora roku)."
+
+    year:
+      usage: "&eUżycie: /{label} year <numer>"
+      invalid_number: "&cNieprawidłowy numer roku."
+      success: "&aRok kalendarzowy ustawiony na &f{year}&a."
+
+    reload:
+      done: "&aKonfiguracje przeładowane."
+
+    hud:
+      player_only: "&cTa komenda może być używana tylko przez gracza."
+      usage: "&eUżycie: /{label} hud <fixed|variable|off>"
+      current: "&7Obecny tryb: &b{mode}"
+      invalid: "&cNieprawidłowy tryb. Użyj: &efixed&c, &evariable&c lub &eoff&c."
+      mode:
+        fixed: "stały"
+        variable: "zmienny"
+        off: "wyłączony"
+      set:
+        fixed: "&aWłączono statyczny wyświetlacz HUD."
+        variable: "&aWłączono zmienny tryb HUD."
+        off: "&cHUD wyłączony."
+
+    help: "&eUżycie: /{label} <info|set|skipday|day|reload|hud>"
+
+realm:
+
+  overworld_title: "&aŚwiat Główny"
+  returned_from: "&7Opuściłeś &f{name}"
+
+
+guide:
+  title: "Przewodnik po Porach Roku Aeternum"
+
+  book_title: "Przewodnik po Porach Roku Aeternum"
+  book_author: "Aeternum"
+  book_given: "Otrzymałeś przewodnik po porach roku."
+
+  current: "Obecna pora roku: {season}"
+
+  intro: "Ten przewodnik podsumowuje pogodę, wydarzenia, uprawy i migrację zwierząt dla każdej pory roku."
+
+  section:
+    crops: "Uprawy według pory roku"
+    migration: "Migracja zwierząt"
+    weather: "Typowa pogoda"
+
+  crops:
+    SPRING: "Pszenica, marchew, ziemniaki, buraki i dynie kwitną; świetna wszechstronna pora roku."
+    SUMMER: "Melony, trzcina cukrowa, kaktusy i uprawy odporne na upały rosną najlepiej."
+    AUTUMN: "Dynie, grzyby i uprawy korzeniowe; idealne do dużych zbiorów i przechowywania."
+    WINTER: "Prawie nic nie rośnie na zewnątrz; do uprawy potrzebne są szklarnie."
+
+  migration:
+    SPRING: "Więcej owiec, pszczół i królików na kwiecistych równinach i w lasach."
+    SUMMER: "Więcej ryb tropikalnych, delfinów, żółwi i aksolotli w ciepłych morzach."
+    AUTUMN: "Lisy, wilki i kozy przenoszą się do tajgi i regionów górskich."
+    WINTER: "Wilki i niedźwiedzie polarne dominują w zimnych biomach; wiele zwierząt ciepłolubnych znika."
+
+  weather:
+    SPRING: "Lekki deszcz, umiarkowane temperatury i dłuższe dni, które pomagają uprawom."
+    SUMMER: "Ostre słońce, wysokie upały i kilka gwałtownych burz."
+    AUTUMN: "Chłodne wiatry, pochmurne niebo i nagłe zmiany temperatury."
+    WINTER: "Częste opady śniegu, ekstremalne zimno i ryzyko zamarznięcia, jeśli nie jesteś chroniony."
+
+  footer: "Możesz zobaczyć ten przewodnik w każdej chwili za pomocą /season guide."
+
+items:
+  food:
+    grows_in: "&7Rośnie w: &a{seasons}"
+
+    season_clock:
+      name: "&6Zegar Pór Roku"
+      lore_1: "&7Kliknij prawym przyciskiem, aby zobaczyć kalendarz,"
+      lore_2: "&7wydarzenia i nadchodzącą pogodę"
+
+clock:
+  use:
+    header: "&6[Zegar Pór Roku]"
+    date: "&7Dzień &e{day}&7/&e{max} &7— &a{season} &7(Rok {year})"
+
+    active_event: "&7Aktywne wydarzenie: &d{event} &7(pozostało {days} dzień/dni)"
+    no_active_event: "&7Aktywne wydarzenie: &fBrak"
+
+    next_events:
+      blocked_by_active: "&7Możliwe jutro: &8(wydarzenie jest już aktywne)"
+      none: "&7Możliwe jutro: &fBrak"
+      single: "&7Jutro: &b{event}"
+
+    weather_line: "&7Pogoda: {state} &7— zmiana za ~{minutes}m"
+
+  weather:
+    raining: "&9Deszcz"
+    clear: "&fBezchmurnie"
+
+crop:
+  lore:
+    grows_in: "&7Rośnie w: {seasons}"
+    any_season: "&7Rośnie w każdej porze roku"
+    greenhouse_light: "&8Podziemna szklarnia: światło {light}+"
+
+villager:
+  lazy_tag: "&7[&6Leniuch&7]"

@@ -1,0 +1,268 @@
+mode: "protocol"        # protocol | particles_only
+debounce_ms: 3000
+particles:
+  winter:  { enabled: false, density: 0.09, radius: 12 }
+  autumn:  { enabled: false, density: 0.06, radius: 12 }
+  spring:  { enabled: false, density: 0.04, radius: 10 }
+  summer:  { enabled: false, density: 0.03, radius: 10 }
+
+seasonal_weather:
+  enabled: true
+  worlds:
+    - world
+
+  # Estos valores se piensan para una estación de 28 días / These values are for a 28-day season
+  # El código los va a escalar automáticamente / Code scales them automatically
+  rainy_days_per_season: 9   # fallback base
+
+  rainy_days:
+    SPRING: 12   # ~ 40-45% de los días / of the days
+    SUMMER: 5    # poco / a little
+    AUTUMN: 4    # muy poco / very little
+    WINTER: 8    # algo menos que primavera / slightly less than spring
+
+  thunder_chance: 0.20
+  storm_duration_ticks:
+    min: 6000
+    max: 18000
+  clear_duration_ticks:
+    min: 6000
+    max: 24000
+  reseed_each_season: true
+  respect_manual_commands: true
+
+real_snow:
+  enabled: true
+  worldguard_respect_regions: true
+  tick_period_ticks: 10
+  max_columns_per_tick: 24
+  radius_blocks: 32
+  freeze_water: true
+
+  startup_melt:
+    enabled: true
+    chunks_per_tick: 1
+
+  storm_boost:
+    enabled: true
+    budget_multiplier: 2.0
+    place_multiplier: 1.5
+    layer_multiplier: 1.5
+    radius_bonus_blocks: 8
+
+  melt:
+    enabled: true
+    tick_period_ticks: 0
+    budget_blocks_per_tick: 300
+    also_ice: true
+
+  canopy:
+    enabled: true
+    attempts_per_tick: 10      # columnas a probar / columns to test
+    radius_blocks: 24          # radio alrededor del jugador / radius around player
+    max_leaf_scan_height: 6    # bloques encima buscar hojas / blocks above to scan leaves
+    only_in_cold_biomes: true  # sólo en biomas naturalmente nevados / only in naturally snowy biomes
+
+biome_spoof:
+  enabled: true
+  mode: "GLOBAL_RING"      # <-- no "GLOBAL"
+  radius_chunks: 8
+  budget_chunks_per_tick: 16
+  revert_on_non_winter: true
+  spawn_guard:
+    enabled: true
+
+  # Biomas objetivo por estación / Target biomes per season
+  seasons:
+    SPRING: "JUNGLE"                # tonos verdes vivos / vivid green tones
+    SUMMER: "PLAINS"                # verde neutro / neutral green
+    AUTUMN: "WINDSWEPT_SAVANNA"     # pasto seco (look otoñal) / dry grass (autumn look)
+    WINTER: "SNOWY_PLAINS"          # frío + nieve vanilla / cold + vanilla snow
+
+  oceans:
+    enabled: true
+    seasons:
+      SPRING: LUKEWARM_OCEAN
+      SUMMER: WARM_OCEAN
+      AUTUMN: OCEAN
+      WINTER: FROZEN_OCEAN
+    affect_rivers: true
+    affect_shores: true
+    keep_deep_variants: true
+
+  rivers:
+    enabled: true           # NUEVO / NEW (si affect_rivers=true)
+    seasons:
+      SPRING: RIVER
+      SUMMER: COLD_OCEAN
+      AUTUMN: RIVER
+      WINTER: FROZEN_RIVER
+
+autumn_soil:
+  enabled: true
+  attempts_per_tick: 4      # entre más alto, más rápido pinta / higher = faster painting
+  chance_per_column: 1.0    # pinta TODAS las columnas / paints ALL columns
+  radius_chunks: 4
+  leaf_chance_per_block: 1.0 # pinta TODAS las hojas / paints ALL leaves
+
+autumn_foliage:
+  enabled: true
+  radius_blocks: 160     # ~10 chunks
+  paint_budget_per_tick: 120
+  revert_budget_per_tick: 120
+  revert_on_non_autumn: true
+
+migration:
+  enabled: true
+  tick_period: 200         # Cada cuánto se procesan migraciones / Migration processing interval
+  animals_per_tick: 40     # Máximo de animales revisados / Max animals checked
+  search_radius_blocks: 160 # Radio búsqueda biomas / Biome search radius
+  particles: true          # Partículas y sonidos / Particles and sounds
+
+  spawn:
+    # Probabilidad spawns extra / Extra spawn chance
+    spring_boost_chance: 0.25
+    summer_boost_chance: 0.25
+    autumn_boost_chance: 0.20
+    winter_boost_chance: 0.18
+
+  soft_despawn:
+    # Probabilidad cancelar spawns clima cálido / Chance to cancel warm-weather spawns
+    warm_in_winter_chance: 0.25
+
+  winter_cleanup:
+    enabled: true
+    days: 3                  # primeros N días de invierno / first N days of winter
+    base_radius_blocks: 64   # día 1 → 64 bloques / day 1
+    radius_step_blocks: 64   # día 2 → 128 / day 2
+    max_per_tick: 40         # cuántos animales limpia / how many animals it cleans
+
+seasonal_flora:
+  enabled: true
+  allow_in_view: true
+  surface_scan_depth: 8
+  tick_period_ticks: 20
+  inner_radius_chunks: 0
+  outer_radius_chunks: 7
+  budget_blocks_per_tick: 70
+  protect_player_placed: true
+
+  rules:
+    berries:
+      enabled: false
+      purge_when_disabled: false
+      blocks: [SWEET_BERRY_BUSH]
+      spread_seasons: [SPRING, SUMMER]
+      remove_seasons: [AUTUMN, WINTER]
+      purge_natural: true
+      replace_with: AIR
+      restore_seasons: [SPRING, SUMMER]
+      restore_chance: 0.01
+      restore_tries_per_chunk: 2
+      min_distance_blocks: 5   # ✅ NUEVO / NEW
+      max_per_chunk: 2         # ✅ NUEVO / NEW
+      biomes: [JUNGLE, PLAINS, WINDSWEPT_SAVANNA]
+      min_light: 0
+      max_light: 15
+      require_solid_ground: true
+      ground_blocks: [GRASS_BLOCK, DIRT, PODZOL, COARSE_DIRT]
+
+    mushrooms:
+      enabled: true
+      purge_when_disabled: true
+      blocks: [RED_MUSHROOM, BROWN_MUSHROOM]
+      spread_seasons: [AUTUMN]
+      remove_seasons: [WINTER, SPRING, SUMMER]
+      purge_natural: true
+      replace_with: AIR
+      restore_seasons: [AUTUMN]
+      restore_chance: 0.05
+      restore_tries_per_chunk: 2
+      min_distance_blocks: 4   # ✅ NUEVO / NEW
+      max_per_chunk: 3         # ✅ NUEVO / NEW
+      biomes: [WINDSWEPT_SAVANNA, SNOWY_PLAINS]
+      max_light: 12
+      require_solid_ground: true
+      ground_blocks: [GRASS_BLOCK, PODZOL, MYCELIUM, MOSS_BLOCK]
+
+    small_flowers:
+      enabled: true
+      purge_when_disabled: true
+      blocks: [DANDELION, POPPY, BLUE_ORCHID, ALLIUM, AZURE_BLUET, RED_TULIP, ORANGE_TULIP, WHITE_TULIP, PINK_TULIP, OXEYE_DAISY, CORNFLOWER, LILY_OF_THE_VALLEY]
+      spread_seasons: [SPRING, SUMMER]
+      remove_seasons: [AUTUMN, WINTER]
+      purge_natural: true
+      replace_with: AIR
+      restore_seasons: [SPRING, SUMMER]
+      restore_chance: 0.06
+      restore_tries_per_chunk: 2
+      min_distance_blocks: 5   # ✅ NUEVO / NEW
+      max_per_chunk: 6         # ✅ NUEVO / NEW
+      biomes: [JUNGLE, PLAINS]
+      min_light: 0
+      max_light: 15
+      require_solid_ground: true
+      ground_blocks: [GRASS_BLOCK, DIRT, PODZOL]
+      forbid_canopy: false
+
+    tall_flowers:
+      enabled: true
+      purge_when_disabled: true
+      blocks: [SUNFLOWER, ROSE_BUSH, LILAC, PEONY]
+      double_plant: true
+      spread_seasons: [SPRING, SUMMER]
+      remove_seasons: [AUTUMN, WINTER]
+      purge_natural: true
+      replace_with: AIR
+      restore_seasons: [SPRING]
+      restore_chance: 0.06
+      restore_tries_per_chunk: 2
+      min_distance_blocks: 6   # ✅ NUEVO / NEW
+      max_per_chunk: 3         # ✅ NUEVO / NEW
+      biomes: [PLAINS, JUNGLE]
+      min_light: 0
+      max_light: 15
+      require_solid_ground: true
+      ground_blocks: [GRASS_BLOCK, DIRT]
+      forbid_canopy: true
+      canopy_check_height: 3
+
+    cocoa:
+      enabled: true
+      purge_when_disabled: true
+      blocks: [COCOA]
+      spread_seasons: [SUMMER, AUTUMN]
+      remove_seasons: [WINTER]
+      purge_natural: true
+      replace_with: AIR
+      restore_seasons: [SUMMER]
+      restore_chance: 0.01
+      restore_tries_per_chunk: 2
+      min_distance_blocks: 6   # ✅ NUEVO / NEW
+      max_per_chunk: 2         # ✅ NUEVO / NEW
+      biomes: [JUNGLE]
+      min_light: 0
+      max_light: 15
+      requires_attachment: true
+      attach_blocks: [JUNGLE_LOG, JUNGLE_WOOD]
+
+    bamboo:
+      enabled: false
+      purge_when_disabled: true
+      blocks: [BAMBOO, BAMBOO_SAPLING]
+      spread_seasons: [SPRING, SUMMER]
+      remove_seasons: [AUTUMN, WINTER]
+      purge_natural: true
+      replace_with: AIR
+      restore_seasons: [ SPRING ]
+      restore_chance: 0.03
+      restore_tries_per_chunk: 4
+      min_distance_blocks: 4   # ✅ NUEVO / NEW
+      max_per_chunk: 4         # ✅ NUEVO / NEW
+      biomes: [ JUNGLE, PLAINS ]
+      min_light: 0
+      max_light: 15
+      require_solid_ground: true
+      forbid_canopy: true
+      canopy_check_height: 3
+      ground_blocks: [ GRASS_BLOCK, DIRT, PODZOL, MOSS_BLOCK ]

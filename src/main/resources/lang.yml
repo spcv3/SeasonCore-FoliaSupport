@@ -1,0 +1,13 @@
+enabled:
+  - en_US #English 🇺🇸
+  - es_ES #Español 🇪🇸
+  - id_ID #Indonesian 🇮🇩
+  - it_IT #Italiano 🇮🇹
+  - fr_FR #Français 🇫🇷
+  - de_DE #Deutsch 🇩🇪
+  - pt_BR #Português (Brasil) 🇧🇷
+  - ru_RU #Русский 🇷🇺
+  - pl_PL #Polski 🇵🇱
+  - vi_VN #Tiếng Việt
+  - tr_TR #Türkçe
+default: auto   # auto = usar idioma del cliente; si no está soportado, cae a en_US
