@@ -22,21 +22,15 @@ Watch your world slowly change through **Spring, Summer, Autumn and Winter**:
 * **Biome colors** shift smoothly.
 * **Snow** covers the ground in winter.
 * **Autumn forests** turn golden.
-* **Sky and weather** follow the season.
+* **Weather** follow the season.
 All fully optimized and spread over time to avoid lag spikes.
 
-## 🔥❄️ Two Optional Adventure Realms
-
-* **Frost Realm:** Glowstone portal. Blizzards, low visibility, frozen terrain, and icy mob variants that slow and freeze you.
-* **Heat / Infernal Realm:** Nether Wart Block portal. Scorching heat, dangerous terrain, and fiery mobs that burn and hit harder.
-Each realm has its own risks, atmosphere, and progression – turning your survival world into a mini adventure RPG.
 
 ## ✨ Features
 
 * **Dynamic seasons:** weather, sky, and biome tints react to the current season.
 * **Autumn foliage:** taiga and birch leaves turn warm colors in autumn.
 * **Highly optimized:** changes are spread across days to avoid lag spikes.
-* **Dimensions:** Frost & Heat, with themed terrain and mob variants.
 * **Fully configurable:** toggle features, dimensions, and weather rules.
 * **PlaceholderAPI support:** for HUDs, scoreboards, and menus.
 * **Multi-language:** Lang folder with English, Spanish, and Indonesian support.
@@ -64,21 +58,15 @@ Mira cómo tu mundo cambia lentamente a través de la **Primavera, Verano, Otoñ
 * **Colores de biomas** que cambian suavemente.
 * **Nieve** que cubre el suelo en invierno.
 * **Bosques otoñales** que se vuelven dorados.
-* **Cielo y clima** que siguen la estación actual.
+* **Clima** que siguen la estación actual.
 Todo está optimizado y distribuido en el tiempo para evitar picos de lag.
 
-## 🔥❄️ Dos Dimensiones de Aventura Opcionales
-
-* **Reino de Escarcha (Frost):** Portal de Glowstone. Ventiscas, baja visibilidad, terreno congelado y variantes de mobs gélidos que te ralentizan y congelan.
-* **Reino de Calor / Infernal:** Portal de bloques de verruga del Nether. Calor abrasador, terreno peligroso y mobs de fuego que queman y golpean más fuerte.
-Cada reino tiene sus propios riesgos y progresión, convirtiendo tu survival en un pequeño RPG de aventura.
 
 ## ✨ Características
 
 * **Estaciones dinámicas:** El clima, el cielo y los tintes de bioma reaccionan a la estación.
 * **Follaje de otoño:** Las hojas de taiga y abedul cambian a colores cálidos.
 * **Optimización alta:** Los cambios se aplican gradualmente para evitar lag.
-* **Dimensiones:** Frost & Heat, con terreno temático y variantes de mobs.
 * **Configuración total:** Activa o desactiva funciones, dimensiones y reglas climáticas.
 * **Soporte PlaceholderAPI:** Para HUDs, scoreboards y menús.
 * **Multi-idioma:** Carpeta Lang con soporte para Inglés, Español e Indonesio.
