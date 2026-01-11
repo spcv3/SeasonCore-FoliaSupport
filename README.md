@@ -72,5 +72,3 @@ Todo está optimizado y distribuido en el tiempo para evitar picos de lag.
 * **Multi-idioma:** Carpeta Lang con soporte para Inglés, Español e Indonesio.
 
 ---
-
-¿Te gustaría que añada una lista de los comandos principales del plugin en ambos idiomas?
