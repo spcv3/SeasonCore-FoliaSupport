@@ -1,7 +1,7 @@
 
 ---
 
-### **Versión en Inglés (English Version)**
+### **(English Version)**
 
 # **Season Core**
 
@@ -43,7 +43,7 @@ Each realm has its own risks, atmosphere, and progression – turning your survi
 
 ---
 
-### **Versión en Español (Spanish Version)**
+### **Versión en Español**
 
 # **Season Core**
 
