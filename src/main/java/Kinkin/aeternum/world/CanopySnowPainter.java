@@ -8,19 +8,22 @@ import org.bukkit.*;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 
 import java.util.EnumSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 public final class CanopySnowPainter implements Runnable {
 
     private final AeternumSeasonsPlugin plugin;
     private final SeasonService seasons;
 
-    private BukkitTask task;
+    private WrappedTask task;
     private final Random random = new Random();
 
     private boolean enabled;
@@ -64,7 +67,7 @@ public final class CanopySnowPainter implements Runnable {
         if (task != null) task.cancel();
         if (!enabled) return;
         // cada 10 ticks (~0.5s)
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this, 60L, 10L);
+        this.task = plugin.getScheduler().runTimer(this, 60L, 10L);
     }
 
     public void unregister() {
@@ -79,6 +82,11 @@ public final class CanopySnowPainter implements Runnable {
         CalendarState st = seasons.getStateCopy();
         if (st.season != Season.WINTER) {
             return; // sólo trabajamos en invierno
+        }
+
+        if (plugin.getFoliaLib().isFolia()) {
+            runFoliaTick();
+            return;
         }
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
@@ -158,6 +166,100 @@ public final class CanopySnowPainter implements Runnable {
                 aboveGround.setType(Material.SNOW, false);
             }
         }
+    }
+
+    private void runFoliaTick() {
+        int budget = Math.max(1, attemptsPerTick);
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+
+        Collections.shuffle(players, ThreadLocalRandom.current());
+
+        int base = Math.max(1, budget / players.size());
+        int extra = budget - (base * players.size());
+
+        for (Player p : players) {
+            int perPlayer = base + (extra-- > 0 ? 1 : 0);
+            plugin.getScheduler().runAtEntity(p, task -> paintForPlayer(p, perPlayer));
+        }
+    }
+
+    private void paintForPlayer(Player p, int attempts) {
+        if (!p.isOnline() || attempts <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+        if (!w.hasStorm()) return;
+
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        int px = p.getLocation().getBlockX();
+        int pz = p.getLocation().getBlockZ();
+        int minY = w.getMinHeight();
+        int maxY = w.getMaxHeight();
+
+        for (int i = 0; i < attempts; i++) {
+            int x = px + rnd.nextInt(-radiusBlocks, radiusBlocks + 1);
+            int z = pz + rnd.nextInt(-radiusBlocks, radiusBlocks + 1);
+
+            Location columnLoc = new Location(w, x, minY, z);
+            plugin.getScheduler().runAtLocation(columnLoc, task -> paintColumn(w, x, z, minY, maxY));
+        }
+    }
+
+    private void paintColumn(World w, int x, int z, int minY, int maxY) {
+        if (!w.isChunkLoaded(x >> 4, z >> 4)) return;
+
+        if (onlyInColdBiomes) {
+            int cx = x >> 4;
+            int cz = z >> 4;
+
+            boolean markedCold = BiomeSpoofAdapter.isChunkNaturallySnowy(w, cx, cz);
+            boolean biomeCold  = isNaturallySnowyBiome(w, x, z);
+
+            if (!markedCold && !biomeCold) {
+                return;
+            }
+        }
+
+        int highest = w.getHighestBlockYAt(x, z) - 1;
+        if (highest < minY) return;
+
+        int scanMinY = Math.max(minY, highest - 16);
+
+        Block ground = null;
+        for (int y = highest; y >= scanMinY; y--) {
+            Block candidate = w.getBlockAt(x, y, z);
+            Material t = candidate.getType();
+
+            if (t == Material.SNOW || t == Material.SNOW_BLOCK) {
+                ground = null;
+                break;
+            }
+
+            if (groundTypes.contains(t)) {
+                Block above = candidate.getRelative(0, 1, 0);
+                Material aboveType = above.getType();
+                if (aboveType.isAir() || above.isPassable()) {
+                    ground = candidate;
+                }
+                break;
+            }
+        }
+
+        if (ground == null) return;
+
+        int groundY = ground.getY();
+        Block aboveGround = ground.getRelative(0, 1, 0);
+        Material aboveType = aboveGround.getType();
+        if (!aboveType.isAir() && !aboveGround.isPassable()) {
+            return; // ya ocupado
+        }
+
+        if (!hasLeavesAbove(w, x, groundY + 2, z, maxY)) {
+            return;
+        }
+
+        aboveGround.setType(Material.SNOW, false);
     }
 
 

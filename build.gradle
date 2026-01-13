@@ -1,4 +1,7 @@
-plugins { id 'java' }
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '9.0.0-beta12'
+}
 
 group = 'Kinkin.aeternum'
 version = '1.8'
@@ -14,6 +17,7 @@ repositories {
     maven { url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
     // 🔹 Repo de WorldGuard / WorldEdit
     maven { url = 'https://maven.enginehub.org/repo/' }
+    maven { url = 'https://repo.tcoded.com/releases' }
 }
 
 dependencies {
@@ -23,8 +27,15 @@ dependencies {
 
     // 🔹 WorldGuard (incluye las clases que estás usando)
     compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.9'
+
+    implementation 'com.tcoded:FoliaLib:0.5.1'
 }
 
 processResources {
     filesMatching('plugin.yml') { expand version: project.version }
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    relocate 'com.tcoded.folialib', 'Kinkin.aeternum.lib.folialib'
 }

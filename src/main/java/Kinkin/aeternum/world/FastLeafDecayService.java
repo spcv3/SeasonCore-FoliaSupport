@@ -64,7 +64,7 @@ public final class FastLeafDecayService implements Listener {
         if (!logTypes.contains(block.getType())) return;
 
         // Lo hacemos unos ticks después para que Minecraft actualice distancias, etc.
-        Bukkit.getScheduler().runTaskLater(plugin, () -> fastDecayAround(block), 5L);
+        plugin.getScheduler().runAtLocationLater(block.getLocation(), () -> fastDecayAround(block), 5L);
     }
 
     private void fastDecayAround(Block originLog) {

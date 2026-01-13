@@ -18,7 +18,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -66,7 +66,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private final EnumMap<Season, Biome> riverTarget = new EnumMap<>(Season.class); // NUEVO
     /* ================================================================ */
 
-    private BukkitTask task;
+    private WrappedTask task;
 
     /**
      * backups: por cada chunk spoofeado guardamos una copia "original"
@@ -89,7 +89,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private static final int STEP_XZ = 4;
     private static final int STEP_Y  = 4;
 
-    private final Map<UUID, ArrayDeque<Long>> nudgeQueue = new ConcurrentHashMap<>();
+    private final Map<UUID, java.util.concurrent.ConcurrentLinkedDeque<Long>> nudgeQueue = new ConcurrentHashMap<>();
     private final Map<String, Long> nudgeLast = new ConcurrentHashMap<>();
     /* ===================================================================== */
 
@@ -190,7 +190,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         Bukkit.getPluginManager().registerEvents(this, plugin);
         if (task != null) task.cancel();
         // cada 10 ticks (~500 ms) es suficiente para un efecto suave
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this, 40L, 10L);
+        this.task = plugin.getScheduler().runTimer(this, 40L, 10L);
     }
 
     public void unregister() {
@@ -221,7 +221,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         }
         backups.remove(k);
 
-        for (ArrayDeque<Long> q : nudgeQueue.values()) {
+        for (java.util.concurrent.ConcurrentLinkedDeque<Long> q : nudgeQueue.values()) {
             q.remove(k);
         }
     }
@@ -272,129 +272,146 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         int budget = effectiveBudget;
         if (budget <= 0) return;
 
+        java.util.concurrent.atomic.AtomicInteger remaining = new java.util.concurrent.atomic.AtomicInteger(budget);
+        Set<Long> processedThisTick = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (budget <= 0) break;
+            if (remaining.get() <= 0) break;
+            plugin.getScheduler().runAtEntity(p, task -> tickForPlayer(
+                    p,
+                    currentTarget, nextTarget,
+                    currentOceanTarget, nextOceanTarget,
+                    preTransitionFactor,
+                    remaining,
+                    processedThisTick
+            ));
 
-            World w = p.getWorld();
-            if (w.getEnvironment() != World.Environment.NORMAL) continue;
+            plugin.getScheduler().runAtEntity(p, task -> flushNudgesForPlayer(p));
+        }
+    }
 
-            int view = Bukkit.getViewDistance();
-            int radius = Math.min(Math.max(radiusChunksCfg, view + 1), view + 4);
+    private void tickForPlayer(Player p,
+                               Biome currentTarget, Biome nextTarget,
+                               Biome currentOceanTarget, Biome nextOceanTarget,
+                               double preTransitionFactor,
+                               java.util.concurrent.atomic.AtomicInteger remaining,
+                               Set<Long> processedThisTick) {
+        if (!p.isOnline()) return;
+        if (remaining.get() <= 0) return;
 
-            Location loc = p.getLocation();
-            int pcx = loc.getBlockX() >> 4;
-            int pcz = loc.getBlockZ() >> 4;
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
 
-            // dirección de mirada (solo plano XZ)
-            Vector look = loc.getDirection().clone();
-            look.setY(0);
-            if (look.lengthSquared() < 1e-4) {
-                look = new Vector(0, 0, 1);
-            } else {
-                look.normalize();
-            }
+        int view = Bukkit.getViewDistance();
+        int radius = Math.min(Math.max(radiusChunksCfg, view + 1), view + 4);
 
-            // 1) procesar SIEMPRE el chunk donde está el jugador primero
-            if (w.isChunkLoaded(pcx, pcz) && budget > 0) {
-                Chunk center = w.getChunkAt(pcx, pcz);
-                long ck = key(center);
+        Location loc = p.getLocation();
+        int pcx = loc.getBlockX() >> 4;
+        int pcz = loc.getBlockZ() >> 4;
 
-                Family fam = classifyOriginalFamily(center);
+        // dirección de mirada (solo plano XZ)
+        Vector look = loc.getDirection().clone();
+        look.setY(0);
+        if (look.lengthSquared() < 1e-4) {
+            look = new Vector(0, 0, 1);
+        } else {
+            look.normalize();
+        }
 
-                Biome chunkTarget = chooseTargetBiomeForChunk(
-                        ck, fam,
-                        currentTarget, nextTarget,
-                        currentOceanTarget, nextOceanTarget,
-                        preTransitionFactor,
-                        center
-                );
+        // 1) procesar SIEMPRE el chunk donde está el jugador primero
+        scheduleChunkSpoof(p, w, pcx, pcz,
+                currentTarget, nextTarget,
+                currentOceanTarget, nextOceanTarget,
+                preTransitionFactor,
+                remaining, processedThisTick);
 
-                // Fuera de invierno respetamos los biomas fríos de origen
-                if (shouldSkipSpoofForChunk(center)) {
-                    // no pintamos este chunk en ninguna estación
-                } else if (!isChunkAtTarget(center, chunkTarget)) {
-                    Biome[] old = captureAndApply(center, chunkTarget);
-                    if (old != null && !backups.containsKey(ck)) {
-                        backups.put(ck, old);
-                    }
-                    spoofed.add(ck);
-                    nudgeViewers(w, pcx, pcz);
-                    budget--;
-                }
-            }
+        if (remaining.get() <= 0) return;
 
-            if (budget <= 0) break;
+        // 2) generar offsets ordenados por:
+        //    - distancia Chebyshev (más cerca primero)
+        //    - adelante de la vista del jugador (más "forward" primero)
+        List<Offset> offsets = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                if (dx == 0 && dz == 0) continue; // ya procesamos el centro
 
-            // 2) generar offsets ordenados por:
-            //    - distancia Chebyshev (más cerca primero)
-            //    - adelante de la vista del jugador (más "forward" primero)
-            List<Offset> offsets = new ArrayList<>();
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (dx == 0 && dz == 0) continue; // ya procesamos el centro
+                int dist = Math.max(Math.abs(dx), Math.abs(dz));
 
-                    int dist = Math.max(Math.abs(dx), Math.abs(dz));
-
-                    Vector dir = new Vector(dx, 0, dz);
-                    double forwardScore;
-                    if (dir.lengthSquared() < 1e-4) {
-                        forwardScore = 0.0;
-                    } else {
-                        dir.normalize();
-                        forwardScore = look.dot(dir); // >0 = delante, <0 = detrás
-                    }
-
-                    offsets.add(new Offset(dx, dz, dist, forwardScore));
-                }
-            }
-
-            offsets.sort(Comparator
-                    .comparingInt((Offset o) -> o.dist)
-                    .thenComparingDouble(o -> -o.forwardScore));
-
-            // 3) aplicar spoof según presupuesto
-            for (Offset off : offsets) {
-                if (budget <= 0) break;
-
-                int cx = pcx + off.dx;
-                int cz = pcz + off.dz;
-                if (!w.isChunkLoaded(cx, cz)) continue;
-
-                Chunk ch = w.getChunkAt(cx, cz);
-                long k = key(ch);
-
-                Family fam = classifyOriginalFamily(ch);
-
-                Biome chunkTarget = chooseTargetBiomeForChunk(
-                        k, fam,
-                        currentTarget, nextTarget,
-                        currentOceanTarget, nextOceanTarget,
-                        preTransitionFactor,
-                        ch
-                );
-
-                // Fuera de invierno, no tocamos chunks fríos de origen
-                if (shouldSkipSpoofForChunk(ch)) {
-                    continue;
+                Vector dir = new Vector(dx, 0, dz);
+                double forwardScore;
+                if (dir.lengthSquared() < 1e-4) {
+                    forwardScore = 0.0;
+                } else {
+                    dir.normalize();
+                    forwardScore = look.dot(dir); // >0 = delante, <0 = detrás
                 }
 
-                if (isChunkAtTarget(ch, chunkTarget)) {
-                    continue; // ya está al bioma objetivo, no tocamos
-                }
-
-                Biome[] old = captureAndApply(ch, chunkTarget);
-                // solo guardamos backup la PRIMERA vez que tocamos este chunk
-                if (old != null && !backups.containsKey(k)) {
-                    backups.put(k, old);
-                }
-
-                spoofed.add(k);
-                nudgeViewers(w, cx, cz);
-                budget--;
+                offsets.add(new Offset(dx, dz, dist, forwardScore));
             }
         }
 
-        flushNudges();
+        offsets.sort(Comparator
+                .comparingInt((Offset o) -> o.dist)
+                .thenComparingDouble(o -> -o.forwardScore));
+
+        // 3) aplicar spoof según presupuesto
+        for (Offset off : offsets) {
+            if (remaining.get() <= 0) break;
+
+            int cx = pcx + off.dx;
+            int cz = pcz + off.dz;
+            scheduleChunkSpoof(p, w, cx, cz,
+                    currentTarget, nextTarget,
+                    currentOceanTarget, nextOceanTarget,
+                    preTransitionFactor,
+                    remaining, processedThisTick);
+        }
+    }
+
+    private void scheduleChunkSpoof(Player p, World w, int cx, int cz,
+                                    Biome currentTarget, Biome nextTarget,
+                                    Biome currentOceanTarget, Biome nextOceanTarget,
+                                    double preTransitionFactor,
+                                    java.util.concurrent.atomic.AtomicInteger remaining,
+                                    Set<Long> processedThisTick) {
+        long ck = key(w, cx, cz);
+        if (!processedThisTick.add(ck)) return;
+
+        Location chunkLoc = new Location(w, (cx << 4) + 8, w.getMinHeight(), (cz << 4) + 8);
+        plugin.getScheduler().runAtLocation(chunkLoc, task -> {
+            if (remaining.get() <= 0) return;
+            if (!w.isChunkLoaded(cx, cz)) return;
+
+            Chunk ch = w.getChunkAt(cx, cz);
+            Family fam = classifyOriginalFamily(ch);
+
+            Biome chunkTarget = chooseTargetBiomeForChunk(
+                    ck, fam,
+                    currentTarget, nextTarget,
+                    currentOceanTarget, nextOceanTarget,
+                    preTransitionFactor,
+                    ch
+            );
+
+            // Fuera de invierno, no tocamos chunks fríos de origen
+            if (shouldSkipSpoofForChunk(ch)) {
+                return;
+            }
+
+            if (isChunkAtTarget(ch, chunkTarget)) {
+                return; // ya está al bioma objetivo, no tocamos
+            }
+
+            Biome[] old = captureAndApply(ch, chunkTarget);
+            // solo guardamos backup la PRIMERA vez que tocamos este chunk
+            if (old != null && !backups.containsKey(ck)) {
+                backups.put(ck, old);
+            }
+
+            spoofed.add(ck);
+            enqueueNudge(p, w, cx, cz);
+            remaining.decrementAndGet();
+        });
     }
 
     /* ===== helpers ===== */
@@ -840,6 +857,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     }
 
     private void enqueueNudge(Player p, World w, int cx, int cz) {
+        if (plugin.getFoliaLib().isFolia()) {
+            return;
+        }
         long ck = key(w, cx, cz);
         String cooldownKey = p.getUniqueId() + ":" + ck;
         long now = System.currentTimeMillis();
@@ -847,22 +867,15 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         if (last != null && (now - last) < NUDGE_COOLDOWN_MS) return;
         nudgeLast.put(cooldownKey, now);
 
-        nudgeQueue.computeIfAbsent(p.getUniqueId(), id -> new ArrayDeque<>()).add(ck);
+        nudgeQueue.computeIfAbsent(p.getUniqueId(), id -> new java.util.concurrent.ConcurrentLinkedDeque<>()).add(ck);
     }
 
-    private void flushNudges() {
+    private void flushNudgesForPlayer(Player p) {
+        java.util.concurrent.ConcurrentLinkedDeque<Long> q = nudgeQueue.get(p.getUniqueId());
+        if (q == null || q.isEmpty()) return;
+
         int sent = 0;
-        for (Iterator<Map.Entry<UUID, ArrayDeque<Long>>> it = nudgeQueue.entrySet().iterator(); it.hasNext() && sent < NUDGES_PER_TICK; ) {
-            Map.Entry<UUID, ArrayDeque<Long>> e = it.next();
-            UUID pid = e.getKey();
-            ArrayDeque<Long> q = e.getValue();
-
-            Player p = Bukkit.getPlayer(pid);
-            if (p == null || !p.isOnline() || q.isEmpty()) {
-                if (q != null && q.isEmpty()) it.remove();
-                continue;
-            }
-
+        while (sent < NUDGES_PER_TICK && !q.isEmpty()) {
             long ck = q.poll();
             sent++;
 
@@ -888,11 +901,15 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
                     BlockData real = w.getBlockAt(loc).getBlockData();
 
                     p.sendBlockChange(loc, fake);
-                    Bukkit.getScheduler().runTask(plugin, () -> p.sendBlockChange(loc, real));
+                    plugin.getScheduler().runNextTick(task -> p.sendBlockChange(loc, real));
 
                     done = true;
                 }
             }
+        }
+
+        if (q.isEmpty()) {
+            nudgeQueue.remove(p.getUniqueId());
         }
     }
 
@@ -1022,7 +1039,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         if (enabled) {
             mode = Mode.GLOBAL_RING;
             if (task == null || task.isCancelled()) {
-                task = Bukkit.getScheduler().runTaskTimer(plugin, this, 40L, 10L);
+                task = plugin.getScheduler().runTimer(this, 40L, 10L);
             }
         } else {
             mode = Mode.OFF;

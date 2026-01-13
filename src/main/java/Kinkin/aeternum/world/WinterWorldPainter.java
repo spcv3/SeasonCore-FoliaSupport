@@ -17,7 +17,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockFormEvent;
 import org.bukkit.event.block.EntityBlockFormEvent;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Snowable;
 import org.bukkit.Chunk;
@@ -43,7 +43,7 @@ public final class WinterWorldPainter implements Listener, Runnable {
 
     private final AeternumSeasonsPlugin plugin;
     private final SeasonService seasons;
-    private BukkitTask task;
+    private WrappedTask task;
 
     // tracking para revertir al apagar
     private final Set<String> paintedSnow = Collections.synchronizedSet(new HashSet<>());
@@ -118,7 +118,7 @@ public final class WinterWorldPainter implements Listener, Runnable {
         if (!enabled) return;
 
         long periodTicks = Math.max(1L, period);
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this, 40L, periodTicks);
+        this.task = plugin.getScheduler().runTimer(this, 40L, periodTicks);
     }
 
     public void reloadFromConfig() {
@@ -264,6 +264,11 @@ public final class WinterWorldPainter implements Listener, Runnable {
         boolean isWinter = (season == Season.WINTER);
         boolean isAutumn = (season == Season.AUTUMN);
 
+        if (plugin.getFoliaLib().isFolia()) {
+            runFoliaTick(isWinter, isAutumn);
+            return;
+        }
+
         // ===== HOJAS OTOÑO =====
         if (autumnFoliageEnabled) {
             if (isAutumn) {
@@ -289,6 +294,27 @@ public final class WinterWorldPainter implements Listener, Runnable {
 
         // En invierno: pintamos nieve/hielo
         spawnWinterSnowAndIce();
+    }
+
+    private void runFoliaTick(boolean isWinter, boolean isAutumn) {
+        if (autumnFoliageEnabled) {
+            if (isAutumn) {
+                foliaPaintAutumnLeavesStep();
+            } else if (revertLeavesOnNonAutumn) {
+                foliaRevertLeavesStep();
+            }
+        }
+
+        startupRunning = false;
+
+        if (!isWinter) {
+            if (meltWhenNotWinter) {
+                foliaMeltAllStep();
+            }
+            return;
+        }
+
+        foliaSpawnWinterSnowAndIce();
     }
 
     private void startupMeltStep() {
@@ -515,6 +541,120 @@ public final class WinterWorldPainter implements Listener, Runnable {
         }
     }
 
+    private void foliaSpawnWinterSnowAndIce() {
+        int totalBudget = budget;
+        if (totalBudget <= 0) return;
+
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+        Collections.shuffle(players, ThreadLocalRandom.current());
+
+        int baseBudget = Math.max(1, totalBudget / players.size());
+        int extra = totalBudget - (baseBudget * players.size());
+        java.util.concurrent.atomic.AtomicInteger remaining = new java.util.concurrent.atomic.AtomicInteger(totalBudget);
+
+        for (Player p : players) {
+            int perPlayer = baseBudget + (extra-- > 0 ? 1 : 0);
+            plugin.getScheduler().runAtEntity(p, task -> spawnWinterSnowForPlayer(p, perPlayer, remaining));
+        }
+    }
+
+    private void spawnWinterSnowForPlayer(Player p, int budgetForPlayer, java.util.concurrent.atomic.AtomicInteger remaining) {
+        if (!p.isOnline() || budgetForPlayer <= 0) return;
+        if (remaining.get() <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        boolean anyCold = isColdAround(w, p.getLocation(), Math.min(24, radius));
+        boolean storming = w.hasStorm() && anyCold;
+
+        int thisRadius = radius;
+        double thisPlace = placeChance;
+        double thisAddLayer = addLayerChance;
+
+        if (storming && stormBoostEnabled) {
+            thisRadius = thisRadius + stormRadiusBonus;
+            thisPlace = clamp(thisPlace * stormPlaceMultiplier, 0.0, 1.0);
+            thisAddLayer = clamp(thisAddLayer * stormLayerMultiplier, 0.0, 1.0);
+        }
+
+        final int radiusLocal = thisRadius;
+        final double placeChanceLocal = thisPlace;
+        final double addLayerChanceLocal = thisAddLayer;
+        final boolean stormingLocal = storming;
+
+        ThreadLocalRandom r = ThreadLocalRandom.current();
+        int px = p.getLocation().getBlockX();
+        int pz = p.getLocation().getBlockZ();
+
+        int localBudget = Math.min(budgetForPlayer, remaining.get());
+        for (int i = 0; i < localBudget && remaining.get() > 0; i++) {
+            int dx = r.nextInt(-radiusLocal, radiusLocal + 1);
+            int dz = r.nextInt(-radiusLocal, radiusLocal + 1);
+            int x = px + dx;
+            int z = pz + dz;
+
+            Location columnLoc = new Location(w, x, w.getMinHeight(), z);
+            plugin.getScheduler().runAtLocation(columnLoc, task -> {
+                if (remaining.get() <= 0) return;
+                if (!w.isChunkLoaded(x >> 4, z >> 4)) return;
+
+                int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+                Block highest = w.getBlockAt(x, y, z);
+
+                if (freezeWater && highest.getType() == Material.WATER) {
+                    if (highest.getBlockData() instanceof Levelled lvl && lvl.getLevel() == 0) {
+                        if (!WinterWorldGuardHelper.canModify(highest)) return;
+                        highest.setType(Material.ICE, false);
+                        markIce(highest);
+                        remaining.decrementAndGet();
+
+                        Block aboveIce = highest.getRelative(BlockFace.UP);
+                        if (aboveIce.getType().isAir()) {
+                            boolean willVanillaSnow = stormingLocal && isColdAt(w, x, z);
+                            double pc = willVanillaSnow ? Math.max(0.75, placeChanceLocal) : placeChanceLocal;
+                            if (ThreadLocalRandom.current().nextDouble() < pc && WinterWorldGuardHelper.canModify(aboveIce)) {
+                                aboveIce.setType(Material.SNOW, false);
+                                markSnow(aboveIce);
+                            }
+                        }
+                    }
+                    return;
+                }
+
+                Block ground = highest;
+                Block air = ground.getRelative(BlockFace.UP);
+                if (!air.getType().isAir()) return;
+                if (shouldBlockSnow(ground)) return;
+
+                if (!WinterWorldGuardHelper.canModify(ground) || !WinterWorldGuardHelper.canModify(air)) {
+                    return;
+                }
+
+                remaining.decrementAndGet();
+
+                boolean willVanillaSnow = stormingLocal && isColdAt(w, x, z);
+                double pc = willVanillaSnow ? Math.max(0.75, placeChanceLocal) : placeChanceLocal;
+                double lc = willVanillaSnow ? Math.max(0.75, addLayerChanceLocal) : addLayerChanceLocal;
+
+                if (ThreadLocalRandom.current().nextDouble() < pc) {
+                    if (ground.getType() == Material.SNOW) {
+                        Snow data = (Snow) ground.getBlockData();
+                        if (ThreadLocalRandom.current().nextDouble() < lc && data.getLayers() < data.getMaximumLayers()) {
+                            data.setLayers(data.getLayers() + 1);
+                            ground.setBlockData(data, false);
+                            markSnow(ground);
+                        }
+                    } else {
+                        air.setType(Material.SNOW, false);
+                        markSnow(air);
+                    }
+                }
+            });
+        }
+    }
+
 
     private void prepareStartupMelt() {
         if (!startupMeltEnabled) return;
@@ -586,8 +726,67 @@ public final class WinterWorldPainter implements Listener, Runnable {
         }
     }
 
+    private void foliaPaintAutumnLeavesStep() {
+        int remaining = autumnPaintBudgetPerTick;
+        if (remaining <= 0) return;
+
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+        Collections.shuffle(players, ThreadLocalRandom.current());
+
+        int baseBudget = Math.max(1, remaining / players.size());
+        int extra = remaining - (baseBudget * players.size());
+
+        for (Player p : players) {
+            int perPlayer = baseBudget + (extra-- > 0 ? 1 : 0);
+            plugin.getScheduler().runAtEntity(p, task -> paintAutumnLeavesForPlayer(p, perPlayer));
+        }
+    }
+
+    private void paintAutumnLeavesForPlayer(Player p, int perPlayer) {
+        if (!p.isOnline() || perPlayer <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        int baseX = p.getLocation().getBlockX();
+        int baseZ = p.getLocation().getBlockZ();
+
+        for (int i = 0; i < perPlayer; i++) {
+            int x = baseX + rnd.nextInt(-autumnRadiusBlocks, autumnRadiusBlocks + 1);
+            int z = baseZ + rnd.nextInt(-autumnRadiusBlocks, autumnRadiusBlocks + 1);
+
+            Location columnLoc = new Location(w, x, w.getMinHeight(), z);
+            plugin.getScheduler().runAtLocation(columnLoc, task -> {
+                if (!w.isChunkLoaded(x >> 4, z >> 4)) return;
+
+                int topY = w.getHighestBlockYAt(x, z);
+                int minY = Math.max(w.getMinHeight(), topY - 32);
+
+                Block found = null;
+                for (int y = topY; y >= minY; y--) {
+                    Block b = w.getBlockAt(x, y, z);
+                    if (!isTargetLeaf(b.getType())) continue;
+
+                    Biome biome = w.getBiome(x, y, z);
+                    if (!isTaigaOrBirchBiome(biome)) continue;
+
+                    found = b;
+                    break;
+                }
+
+                if (found != null) {
+                    paintLeafCluster(found);
+                }
+            });
+        }
+    }
+
     private void paintLeafCluster(Block start) {
         World w = start.getWorld();
+        int baseChunkX = start.getX() >> 4;
+        int baseChunkZ = start.getZ() >> 4;
         Queue<Block> queue = new ArrayDeque<>();
         Set<String> visited = new HashSet<>();
 
@@ -620,6 +819,9 @@ public final class WinterWorldPainter implements Listener, Runnable {
                                 b.getY() + dy,
                                 b.getZ() + dz
                         );
+                        if ((nb.getX() >> 4) != baseChunkX || (nb.getZ() >> 4) != baseChunkZ) {
+                            continue;
+                        }
                         String nk = key(nb);
                         if (visited.add(nk) && isTargetLeaf(nb.getType())) {
                             queue.add(nb);
@@ -665,6 +867,39 @@ public final class WinterWorldPainter implements Listener, Runnable {
                     b.setType(original, false);
                 }
             }
+            it.remove();
+        }
+    }
+
+    private void foliaRevertLeavesStep() {
+        int budget = autumnRevertBudgetPerTick;
+        if (budget <= 0 || paintedLeaves.isEmpty()) return;
+
+        Iterator<Map.Entry<String, Material>> it = paintedLeaves.entrySet().iterator();
+        while (it.hasNext() && budget-- > 0) {
+            Map.Entry<String, Material> e = it.next();
+            String k = e.getKey();
+            Material original = e.getValue();
+
+            String[] s = k.split(";");
+            World w = Bukkit.getWorld(s[0]);
+            if (w == null) {
+                it.remove();
+                continue;
+            }
+            int x = Integer.parseInt(s[1]);
+            int y = Integer.parseInt(s[2]);
+            int z = Integer.parseInt(s[3]);
+
+            Location loc = new Location(w, x, y, z);
+            plugin.getScheduler().runAtLocation(loc, task -> {
+                if (!w.isChunkLoaded(x >> 4, z >> 4)) return;
+                Block b = w.getBlockAt(x, y, z);
+                if (b.getType() == Material.ACACIA_LEAVES && WinterWorldGuardHelper.canModify(b)) {
+                    b.setType(original, false);
+                }
+            });
+
             it.remove();
         }
     }
@@ -758,6 +993,105 @@ public final class WinterWorldPainter implements Listener, Runnable {
                     }
                 }
             }
+        }
+    }
+
+    private void foliaMeltAllStep() {
+        int remaining = meltBudgetPerTick;
+        if (remaining <= 0) return;
+
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+        Collections.shuffle(players, ThreadLocalRandom.current());
+
+        int baseBudget = Math.max(1, remaining / players.size());
+        int extra = remaining - (baseBudget * players.size());
+        java.util.concurrent.atomic.AtomicInteger globalRemaining = new java.util.concurrent.atomic.AtomicInteger(remaining);
+
+        for (Player p : players) {
+            int perPlayer = baseBudget + (extra-- > 0 ? 1 : 0);
+            plugin.getScheduler().runAtEntity(p, task -> meltForPlayer(p, perPlayer, globalRemaining));
+        }
+    }
+
+    private void meltForPlayer(Player p, int perPlayer, java.util.concurrent.atomic.AtomicInteger globalRemaining) {
+        if (!p.isOnline() || perPlayer <= 0) return;
+        if (globalRemaining.get() <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        int px = p.getLocation().getBlockX();
+        int pz = p.getLocation().getBlockZ();
+
+        int rad = radius * 2;
+
+        for (int i = 0; i < perPlayer && globalRemaining.get() > 0; i++) {
+            int x = px + rnd.nextInt(-rad, rad + 1);
+            int z = pz + rnd.nextInt(-rad, rad + 1);
+
+            Location columnLoc = new Location(w, x, w.getMinHeight(), z);
+            plugin.getScheduler().runAtLocation(columnLoc, task -> {
+                if (globalRemaining.get() <= 0) return;
+                if (!w.isChunkLoaded(x >> 4, z >> 4)) return;
+
+                int topY = w.getMaxHeight() - 1;
+                int minY = w.getMinHeight();
+
+                for (int y = topY; y >= minY && globalRemaining.get() > 0; y--) {
+                    Block b = w.getBlockAt(x, y, z);
+                    Material type = b.getType();
+
+                    if (type == Material.SNOW || type == Material.SNOW_BLOCK ||
+                            type == Material.ICE || type == Material.FROSTED_ICE) {
+                        int chunkX = x >> 4;
+                        int chunkZ = z >> 4;
+                        if (BiomeSpoofAdapter.isChunkNaturallySnowy(w, chunkX, chunkZ)) {
+                            continue;
+                        }
+
+                        String k = key(b);
+                        if ((type == Material.SNOW || type == Material.SNOW_BLOCK) && protectedSnow.contains(k)) {
+                            continue;
+                        }
+                        if ((type == Material.ICE || type == Material.FROSTED_ICE) && protectedIce.contains(k)) {
+                            continue;
+                        }
+                    }
+
+                    if (type == Material.SNOW || type == Material.SNOW_BLOCK) {
+                        if (!WinterWorldGuardHelper.canModify(b)) {
+                            continue;
+                        }
+                        b.setType(Material.AIR, false);
+                        clearSnowyBelow(b);
+                        globalRemaining.decrementAndGet();
+                        break;
+                    } else if (meltAlsoIce &&
+                            (type == Material.ICE || type == Material.FROSTED_ICE)) {
+                        if (!WinterWorldGuardHelper.canModify(b)) {
+                            continue;
+                        }
+                        b.setType(Material.WATER, false);
+                        globalRemaining.decrementAndGet();
+                        break;
+                    } else {
+                        BlockData data = b.getBlockData();
+                        if (data instanceof Snowable snowData && snowData.isSnowy()) {
+                            Block above = b.getRelative(0, 1, 0);
+                            Material aboveType = above.getType();
+                            if (aboveType != Material.SNOW && aboveType != Material.SNOW_BLOCK) {
+                                if (!WinterWorldGuardHelper.canModify(b)) {
+                                    continue;
+                                }
+                                snowData.setSnowy(false);
+                                b.setBlockData(snowData, false);
+                            }
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -862,6 +1196,9 @@ public final class WinterWorldPainter implements Listener, Runnable {
     }
 
     private void clearAllPainted() {
+        if (plugin.getFoliaLib().isFolia()) {
+            return;
+        }
         // nieve
         for (String k : new HashSet<>(paintedSnow)) {
             if (protectedSnow.contains(k)) continue; // ✅ NO borres lo del jugador

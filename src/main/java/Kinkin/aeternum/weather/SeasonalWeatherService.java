@@ -57,9 +57,9 @@ public final class SeasonalWeatherService implements Listener {
         if (!enabled) return;
         Bukkit.getPluginManager().registerEvents(this, plugin);
         // aplicar clima del día actual al registrar
-        applyForToday();
+        applyForTodayGlobal();
         // reloj suave: chequea índice de día del mundo para re-aplicar al amanecer si hace falta
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickWorldClock, 60L, 40L);
+        plugin.getScheduler().runTimer(this::tickWorldClock, 60L, 40L);
     }
 
     public void unregister() {
@@ -121,7 +121,7 @@ public final class SeasonalWeatherService implements Listener {
         }
 
         // aplicar clima del día actual según agenda
-        applyForToday();
+        applyForTodayGlobal();
 
         // reset del override manual al cambiar de día/estación
         manualOverrideToday = false;
@@ -142,6 +142,10 @@ public final class SeasonalWeatherService implements Listener {
             manualOverrideToday = false;
             applyForToday();
         }
+    }
+
+    private void applyForTodayGlobal() {
+        plugin.getScheduler().runNextTick(task -> applyForToday());
     }
 
     private void applyForToday() {

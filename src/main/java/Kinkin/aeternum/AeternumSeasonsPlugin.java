@@ -11,6 +11,8 @@ import Kinkin.aeternum.command.SeasonCommand;
 import Kinkin.aeternum.util.Configs;
 import Kinkin.aeternum.weather.SeasonalWeatherService;
 import Kinkin.aeternum.world.*;
+import com.tcoded.folialib.FoliaLib;
+import com.tcoded.folialib.impl.PlatformScheduler;
 import org.bukkit.*;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.generator.ChunkGenerator;
@@ -37,6 +39,7 @@ public final class AeternumSeasonsPlugin extends JavaPlugin {
     private VillagerTypeOverrides villagerTypes;
     private java.util.List<String> disabledWorlds = new java.util.ArrayList<>();
     private BiomeSpoofSpawnGuard biomeSpoofSpawnGuard;
+    private FoliaLib foliaLib;
 
     private void loadWorldExclusionList() {
         // Obtenemos la lista de la nueva sección 'worlds.disabled_season_fx'
@@ -57,6 +60,7 @@ public final class AeternumSeasonsPlugin extends JavaPlugin {
 
     @Override public void onEnable() {
         saveDefaultConfig();
+        this.foliaLib = new FoliaLib(this);
         this.cfg = new Configs(this);
         this.lang = new LanguageManager(this);
         lang.register();
@@ -152,6 +156,9 @@ public final class AeternumSeasonsPlugin extends JavaPlugin {
         if (villagerTypes != null) {
             org.bukkit.event.HandlerList.unregisterAll(villagerTypes);
         }
+        if (foliaLib != null) {
+            foliaLib.getScheduler().cancelAllTasks();
+        }
 
     }
 
@@ -234,5 +241,12 @@ public final class AeternumSeasonsPlugin extends JavaPlugin {
         return seasons;
     }
 
-}
+    public FoliaLib getFoliaLib() {
+        return foliaLib;
+    }
 
+    public PlatformScheduler getScheduler() {
+        return foliaLib.getScheduler();
+    }
+
+}

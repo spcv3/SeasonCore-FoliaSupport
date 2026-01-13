@@ -18,7 +18,7 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 
 import java.util.*;
 
@@ -40,7 +40,7 @@ public final class HudService implements Listener, Runnable {
     private final Set<UUID> variablePlayers = new HashSet<>();
     private final Set<UUID> offPlayers = new HashSet<>();
 
-    private BukkitTask task;
+    private WrappedTask task;
 
     // Antes era "enabled" (bossbar). Ahora separo para poder activar ActionBar sin romper nada.
     private final boolean bossbarEnabled;
@@ -92,7 +92,7 @@ public final class HudService implements Listener, Runnable {
             }
         }
 
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this, 1L, updateTicks);
+        this.task = plugin.getScheduler().runTimer(this, 1L, updateTicks);
     }
 
     public void unregister() {
@@ -116,7 +116,7 @@ public final class HudService implements Listener, Runnable {
     @org.bukkit.event.EventHandler
     public void onRespawn(PlayerRespawnEvent e) {
         if (!bossbarEnabled) return;
-        Bukkit.getScheduler().runTask(plugin, () -> ensureBar(e.getPlayer()));
+        plugin.getScheduler().runNextTick(task -> ensureBar(e.getPlayer()));
     }
 
     @org.bukkit.event.EventHandler

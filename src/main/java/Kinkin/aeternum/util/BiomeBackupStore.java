@@ -6,7 +6,7 @@ import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.command.CommandSender;
-import org.bukkit.scheduler.BukkitRunnable;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -60,7 +60,7 @@ public final class BiomeBackupStore {
         int minY = w.getMinHeight();
         int maxY = w.getMaxHeight();
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        plugin.getScheduler().runAsync(task -> {
             try {
                 writeBackup(file, copy, stepXZ, stepY, minY, maxY);
                 saved.add(k);
@@ -125,7 +125,7 @@ public final class BiomeBackupStore {
 
     public void startRestoreAll(CommandSender sender, int budgetChunksPerTick) {
         // escaneo async de todos los backups
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        plugin.getScheduler().runAsync(task -> {
             List<Path> files = new ArrayList<>();
 
             if (Files.exists(root)) {
@@ -136,7 +136,7 @@ public final class BiomeBackupStore {
                 }
             }
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            plugin.getScheduler().runNextTick(next -> {
                 if (files.isEmpty()) {
                     sender.sendMessage("§e[BiomeBackup] No hay backups para restaurar.");
                     return;
@@ -145,13 +145,13 @@ public final class BiomeBackupStore {
                 sender.sendMessage("§a[BiomeBackup] Restaurando " + files.size()
                         + " chunks... budget=" + budgetChunksPerTick + "/tick");
 
-                new RestoreTask(files.iterator(), sender, Math.max(1, budgetChunksPerTick))
-                        .runTaskTimer(plugin, 1L, 1L);
+                RestoreTask restoreTask = new RestoreTask(files.iterator(), sender, Math.max(1, budgetChunksPerTick));
+                plugin.getScheduler().runTimer(restoreTask::tick, 1L, 1L);
             });
         });
     }
 
-    private final class RestoreTask extends BukkitRunnable {
+    private final class RestoreTask {
         private final Iterator<Path> it;
         private final CommandSender sender;
         private final int budget;
@@ -165,8 +165,7 @@ public final class BiomeBackupStore {
             this.budget = budget;
         }
 
-        @Override
-        public void run() {
+        private void tick(WrappedTask task) {
             int doneThisTick = 0;
 
             while (doneThisTick < budget && it.hasNext()) {
@@ -188,7 +187,7 @@ public final class BiomeBackupStore {
             }
 
             if (!it.hasNext()) {
-                cancel();
+                task.cancel();
                 sender.sendMessage("§a[BiomeBackup] Restore terminado. OK=" + restored + ", FAIL=" + failed);
             }
         }

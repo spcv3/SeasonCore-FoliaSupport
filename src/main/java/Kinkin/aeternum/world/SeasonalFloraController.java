@@ -20,7 +20,7 @@ import org.bukkit.event.block.*;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -68,7 +68,7 @@ public final class SeasonalFloraController implements Listener, Runnable {
     private volatile boolean placementsDirty;
     private long nextAutosaveAtMs;
 
-    private BukkitTask task;
+    private WrappedTask task;
 
     /** Reglas cargadas desde config (incluye purge-only cuando están disabled) */
     private final Map<String, FloraRule> rules = new LinkedHashMap<>();
@@ -102,7 +102,7 @@ public final class SeasonalFloraController implements Listener, Runnable {
         Bukkit.getPluginManager().registerEvents(this, plugin);
         if (task != null) task.cancel();
         if (!enabled) return;
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this, 40L, tickPeriod);
+        this.task = plugin.getScheduler().runTimer(this, 40L, tickPeriod);
     }
 
     public void unregister() {
@@ -334,57 +334,74 @@ public final class SeasonalFloraController implements Listener, Runnable {
         CalendarState st = seasons.getStateCopy();
         Season season = st.season;
 
-        int budget = budgetPerTick;
-        if (budget <= 0) return;
+        int maxChunks = Math.max(1, Math.min(maxChunksPerTick, Math.max(1, budgetPerTick)));
+        int perChunkBudget = Math.max(1, budgetPerTick / maxChunks);
 
         // evita procesar el mismo chunk 2 veces este tick (por donuts solapados)
-        Set<Long> processedThisTick = new HashSet<>();
+        Set<Long> processedThisTick = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        java.util.concurrent.atomic.AtomicInteger remainingChunks =
+                new java.util.concurrent.atomic.AtomicInteger(maxChunks);
 
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (budget <= 0) break;
-            if (processedThisTick.size() >= maxChunksPerTick) break;
-
-            World w = p.getWorld();
-            if (w.getEnvironment() != World.Environment.NORMAL) continue;
-
-            int outer = Math.max(outerRadiusChunksCfg, 1);
-            if (allowInView) {
-                int view = Bukkit.getViewDistance();
-                // que outer nunca sea mayor al view distance (para que el chunk exista cargado)
-                outer = Math.min(outer, view);
-            }
-
-// inner no puede pasar de outer-1
-            int inner = Math.min(innerRadiusChunksCfg, Math.max(0, outer - 1));
-
-            Location loc = p.getLocation();
-            int pcx = loc.getBlockX() >> 4;
-            int pcz = loc.getBlockZ() >> 4;
-
-            // Donut: solo distancias [inner..outer]
-            for (int dist = inner; dist <= outer && budget > 0; dist++) {
-                if (processedThisTick.size() >= maxChunksPerTick) break;
-                for (int dx = -dist; dx <= dist && budget > 0; dx += OFFSETS_STEP) {
-                    if (processedThisTick.size() >= maxChunksPerTick) break;
-                    for (int dz = -dist; dz <= dist && budget > 0; dz += OFFSETS_STEP) {
-                        if (processedThisTick.size() >= maxChunksPerTick) break;
-                        if (Math.max(Math.abs(dx), Math.abs(dz)) != dist) continue;
-
-                        int cx = pcx + dx;
-                        int cz = pcz + dz;
-                        if (!w.isChunkLoaded(cx, cz)) continue;
-
-                        long ck = chunkKey(w, cx, cz);
-                        if (!processedThisTick.add(ck)) continue; // ya processado este tick
-
-                        Chunk ch = w.getChunkAt(cx, cz);
-                        budget = processChunk(ch, season, budget);
-                    }
-                }
-            }
+            if (remainingChunks.get() <= 0) break;
+            plugin.getScheduler().runAtEntity(p, task -> tickForPlayer(p, season, perChunkBudget, remainingChunks, processedThisTick));
         }
 
         autosaveMaybe();
+    }
+
+    private void tickForPlayer(Player p, Season season, int perChunkBudget,
+                               java.util.concurrent.atomic.AtomicInteger remainingChunks,
+                               Set<Long> processedThisTick) {
+        if (!p.isOnline()) return;
+        if (remainingChunks.get() <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        int outer = Math.max(outerRadiusChunksCfg, 1);
+        if (allowInView) {
+            int view = Bukkit.getViewDistance();
+            // que outer nunca sea mayor al view distance (para que el chunk exista cargado)
+            outer = Math.min(outer, view);
+        }
+
+        // inner no puede pasar de outer-1
+        int inner = Math.min(innerRadiusChunksCfg, Math.max(0, outer - 1));
+
+        Location loc = p.getLocation();
+        int pcx = loc.getBlockX() >> 4;
+        int pcz = loc.getBlockZ() >> 4;
+
+        // Donut: solo distancias [inner..outer]
+        for (int dist = inner; dist <= outer && remainingChunks.get() > 0; dist++) {
+            for (int dx = -dist; dx <= dist && remainingChunks.get() > 0; dx += OFFSETS_STEP) {
+                for (int dz = -dist; dz <= dist && remainingChunks.get() > 0; dz += OFFSETS_STEP) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != dist) continue;
+
+                    int cx = pcx + dx;
+                    int cz = pcz + dz;
+                    long ck = chunkKey(w, cx, cz);
+                    if (!processedThisTick.add(ck)) continue; // ya procesado este tick
+
+                    if (remainingChunks.getAndDecrement() <= 0) {
+                        remainingChunks.incrementAndGet();
+                        return;
+                    }
+
+                    scheduleChunkProcess(w, cx, cz, season, perChunkBudget);
+                }
+            }
+        }
+    }
+
+    private void scheduleChunkProcess(World w, int cx, int cz, Season season, int budget) {
+        Location chunkLoc = new Location(w, (cx << 4) + 8, w.getMinHeight(), (cz << 4) + 8);
+        plugin.getScheduler().runAtLocation(chunkLoc, task -> {
+            if (!w.isChunkLoaded(cx, cz)) return;
+            Chunk ch = w.getChunkAt(cx, cz);
+            processChunk(ch, season, budget);
+        });
     }
 
     private int processChunk(Chunk ch, Season season, int budget) {

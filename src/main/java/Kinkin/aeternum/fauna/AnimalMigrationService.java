@@ -11,10 +11,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.HeightMap;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Migraciones estacionales de animales.
@@ -27,7 +28,7 @@ public final class AnimalMigrationService implements Listener, Runnable {
 
     private final AeternumSeasonsPlugin plugin;
     private final SeasonService seasons;
-    private BukkitTask task;
+    private WrappedTask task;
     private final Random random = new Random();
 
     private boolean enabled;
@@ -176,7 +177,7 @@ public final class AnimalMigrationService implements Listener, Runnable {
         Bukkit.getPluginManager().registerEvents(this, plugin);
         if (task != null) task.cancel();
         if (!enabled) return;
-        task = Bukkit.getScheduler().runTaskTimer(plugin, this, 80L, tickPeriod);
+        task = plugin.getScheduler().runTimer(this, 80L, tickPeriod);
     }
 
     public void unregister() {
@@ -255,6 +256,11 @@ public final class AnimalMigrationService implements Listener, Runnable {
         if (!enabled) return;
         CalendarState st = seasons.getStateCopy();
 
+        if (plugin.getFoliaLib().isFolia()) {
+            runFoliaTick(st);
+            return;
+        }
+
         // Limpieza fuerte de fauna cálida en los primeros N días de invierno
         if (st.season == Season.WINTER && winterCleanupEnabled && st.day <= winterCleanupMaxDays) {
             performWinterCleanup(st);
@@ -276,6 +282,104 @@ public final class AnimalMigrationService implements Listener, Runnable {
                 handleMigrationFor(st, le);
                 budget--;
             }
+        }
+    }
+
+    private void runFoliaTick(CalendarState st) {
+        if (st.season == Season.WINTER && winterCleanupEnabled && st.day <= winterCleanupMaxDays) {
+            foliaWinterCleanup(st);
+            return;
+        }
+
+        java.util.concurrent.atomic.AtomicInteger budget = new java.util.concurrent.atomic.AtomicInteger(animalsPerTick);
+        if (budget.get() <= 0) return;
+
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+        Collections.shuffle(players, ThreadLocalRandom.current());
+
+        for (Player p : players) {
+            if (budget.get() <= 0) break;
+            plugin.getScheduler().runAtEntity(p, task -> processMigrationsNearPlayer(p, st, budget));
+        }
+    }
+
+    private void processMigrationsNearPlayer(Player p, CalendarState st,
+                                             java.util.concurrent.atomic.AtomicInteger budget) {
+        if (!p.isOnline()) return;
+        if (budget.get() <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL &&
+                w.getEnvironment() != World.Environment.NETHER) return;
+
+        int pcx = p.getLocation().getBlockX() >> 4;
+        int pcz = p.getLocation().getBlockZ() >> 4;
+
+        for (Entity ent : p.getNearbyEntities(searchRadiusBlocks, searchRadiusBlocks, searchRadiusBlocks)) {
+            if (budget.get() <= 0) break;
+            if (!(ent instanceof LivingEntity le)) continue;
+            if (!isInterestingAnimal(le)) continue;
+            if (!le.isValid() || le.isDead()) continue;
+
+            int ecx = le.getLocation().getBlockX() >> 4;
+            int ecz = le.getLocation().getBlockZ() >> 4;
+            if (ecx != pcx || ecz != pcz) continue;
+
+            handleMigrationFor(st, le);
+            budget.decrementAndGet();
+        }
+    }
+
+    private void foliaWinterCleanup(CalendarState st) {
+        int dayIndex = Math.max(1, Math.min(st.day, winterCleanupMaxDays));
+
+        int radius = winterCleanupBaseRadius
+                + (dayIndex - 1) * winterCleanupRadiusStep;
+
+        java.util.concurrent.atomic.AtomicInteger budget = new java.util.concurrent.atomic.AtomicInteger(winterCleanupPerTick);
+        if (budget.get() <= 0) return;
+
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+        Collections.shuffle(players, ThreadLocalRandom.current());
+
+        for (Player p : players) {
+            if (budget.get() <= 0) break;
+            plugin.getScheduler().runAtEntity(p, task -> cleanupNearPlayer(p, radius, budget));
+        }
+    }
+
+    private void cleanupNearPlayer(Player p, int radius,
+                                   java.util.concurrent.atomic.AtomicInteger budget) {
+        if (!p.isOnline()) return;
+        if (budget.get() <= 0) return;
+
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        int pcx = p.getLocation().getBlockX() >> 4;
+        int pcz = p.getLocation().getBlockZ() >> 4;
+        double maxDistSq = radius * (double) radius;
+
+        for (Entity ent : p.getNearbyEntities(radius, radius, radius)) {
+            if (budget.get() <= 0) break;
+            if (!(ent instanceof LivingEntity le)) continue;
+            if (!isInterestingAnimal(le)) continue;
+            if (!le.isValid() || le.isDead()) continue;
+
+            int ecx = le.getLocation().getBlockX() >> 4;
+            int ecz = le.getLocation().getBlockZ() >> 4;
+            if (ecx != pcx || ecz != pcz) continue;
+
+            EntityType type = le.getType();
+            if (!warmClimateAnimals.contains(type)) continue;
+            if (coldClimateAnimals.contains(type)) continue;
+
+            if (le.getLocation().distanceSquared(p.getLocation()) > maxDistSq) continue;
+
+            softRemove(le);
+            budget.decrementAndGet();
         }
     }
 
@@ -481,6 +585,10 @@ public final class AnimalMigrationService implements Listener, Runnable {
 
     private Location findNearbyBiome(Location origin,
                                      java.util.function.Predicate<Biome> predicate) {
+        if (plugin.getFoliaLib().isFolia()) {
+            return findNearbyBiomeFolia(origin, predicate);
+        }
+
         World w = origin.getWorld();
         int radius = searchRadiusBlocks;
         int tries  = 40;
@@ -505,6 +613,34 @@ public final class AnimalMigrationService implements Listener, Runnable {
             Location loc = new Location(w, x + 0.5, y + 1, z + 0.5);
 
             // Esto también toca bloques: pero como el chunk está cargado, no congela
+            if (loc.getBlock().isPassable() && loc.clone().add(0, 1, 0).getBlock().isPassable()) {
+                return loc;
+            }
+        }
+        return null;
+    }
+
+    private Location findNearbyBiomeFolia(Location origin,
+                                          java.util.function.Predicate<Biome> predicate) {
+        World w = origin.getWorld();
+        int cx = origin.getBlockX() >> 4;
+        int cz = origin.getBlockZ() >> 4;
+
+        if (!w.isChunkLoaded(cx, cz)) return null;
+
+        int baseX = cx << 4;
+        int baseZ = cz << 4;
+
+        int tries = 24;
+        for (int i = 0; i < tries; i++) {
+            int x = baseX + random.nextInt(16);
+            int z = baseZ + random.nextInt(16);
+            int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+
+            Biome b = w.getBiome(x, y, z);
+            if (!predicate.test(b)) continue;
+
+            Location loc = new Location(w, x + 0.5, y + 1, z + 0.5);
             if (loc.getBlock().isPassable() && loc.clone().add(0, 1, 0).getBlock().isPassable()) {
                 return loc;
             }

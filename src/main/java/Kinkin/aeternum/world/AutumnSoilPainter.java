@@ -18,7 +18,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.util.Vector;
 import org.bukkit.Location;
 
@@ -30,7 +30,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     private final AeternumSeasonsPlugin plugin;
     private final SeasonService seasons;
 
-    private BukkitTask task;
+    private WrappedTask task;
     private final Random random = new Random();
 
     // cuántos CHUNKS intentamos procesar por tick (global)
@@ -101,7 +101,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     public void register() {
         if (task != null) task.cancel();
         if (!plugin.cfg.climate.getBoolean("autumn_soil.enabled", false)) return;
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this, 60L, 5L);
+        this.task = plugin.getScheduler().runTimer(this, 60L, 5L);
 
         // registrar como listener
         Bukkit.getPluginManager().registerEvents(this, plugin);
@@ -116,9 +116,23 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     public void run() {
         CalendarState st = seasons.getStateCopy();
         gridFlip = !gridFlip; // alternamos patrón cada tick
+        boolean localGridFlip = gridFlip;
 
-        int budget = chunksPerTick;
-        if (budget <= 0) return;
+        int totalBudget = Math.max(1, chunksPerTick);
+        int online = Bukkit.getOnlinePlayers().size();
+        if (online <= 0) return;
+
+        int baseBudget = Math.max(1, totalBudget / online);
+        int extra = totalBudget - (baseBudget * online);
+
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            int budget = baseBudget + (extra-- > 0 ? 1 : 0);
+            plugin.getScheduler().runAtEntity(p, task -> tickForPlayer(p, st, localGridFlip, budget));
+        }
+    }
+
+    private void tickForPlayer(Player p, CalendarState st, boolean localGridFlip, int budget) {
+        if (!p.isOnline() || budget <= 0) return;
 
         Season season = st.season;
         int dayInSeason = computeDayInSeason(st);
@@ -134,79 +148,95 @@ public final class AutumnSoilPainter implements Runnable, Listener {
             paintFactor = computePreAutumnFactor(dayInSeason);
         }
 
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        Location loc = p.getLocation();
+        int pcx = loc.getBlockX() >> 4;
+        int pcz = loc.getBlockZ() >> 4;
+
         // fuera de pre-otoño y otoño -> MODO LIMPIEZA + AUTOREPARACIÓN
         if (paintFactor <= 0.0) {
-            // 1) Revertir las hojas que SÍ conocemos por mapa
-            revertSomeLeaves(4096);
-
-            // 2) Reparar hojas de acacia "sospechosas" en taiga/birch,
-            // incluso si el mapa se perdió en un reinicio.
-            healResidualAutumnLeavesAroundPlayers();
-
+            scheduleCleanupAroundPlayer(p, w, pcx, pcz, budget);
             return;
         }
 
         // "otoño maduro": desde día 3 queremos que cerca del jugador estén FULL pintados
         boolean matureAutumn = (season == Season.AUTUMN && dayInSeason >= 3);
 
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (budget <= 0) break;
+        // dirección de mirada (para ordenar como BiomeSpoofAdapter)
+        Vector look = loc.getDirection().clone();
+        look.setY(0);
+        if (look.lengthSquared() < 1e-4) {
+            look = new Vector(0, 0, 1);
+        } else {
+            look.normalize();
+        }
 
-            World w = p.getWorld();
-            if (w.getEnvironment() != World.Environment.NORMAL) continue;
+        int radius = radiusChunks;
 
-            Location loc = p.getLocation();
-            int pcx = loc.getBlockX() >> 4;
-            int pcz = loc.getBlockZ() >> 4;
+        List<Offset> offsets = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                int dist = Math.max(Math.abs(dx), Math.abs(dz));
+                if (dist == 0) continue; // el chunk del jugador lo procesamos aparte
 
-            // dirección de mirada (para ordenar como BiomeSpoofAdapter)
-            Vector look = loc.getDirection().clone();
-            look.setY(0);
-            if (look.lengthSquared() < 1e-4) {
-                look = new Vector(0, 0, 1);
-            } else {
-                look.normalize();
-            }
-
-            int radius = radiusChunks;
-
-            List<Offset> offsets = new ArrayList<>();
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    int dist = Math.max(Math.abs(dx), Math.abs(dz));
-                    if (dist == 0) continue; // el chunk del jugador lo procesamos aparte
-
-                    Vector dir = new Vector(dx, 0, dz);
-                    double forward;
-                    if (dir.lengthSquared() < 1e-4) {
-                        forward = 0.0;
-                    } else {
-                        dir.normalize();
-                        forward = look.dot(dir);
-                    }
-                    offsets.add(new Offset(dx, dz, dist, forward));
+                Vector dir = new Vector(dx, 0, dz);
+                double forward;
+                if (dir.lengthSquared() < 1e-4) {
+                    forward = 0.0;
+                } else {
+                    dir.normalize();
+                    forward = look.dot(dir);
                 }
+                offsets.add(new Offset(dx, dz, dist, forward));
             }
-            offsets.sort(java.util.Comparator
-                    .comparingInt((Offset o) -> o.dist)
-                    .thenComparingDouble(o -> -o.forwardScore));
+        }
+        offsets.sort(java.util.Comparator
+                .comparingInt((Offset o) -> o.dist)
+                .thenComparingDouble(o -> -o.forwardScore));
 
-            // 1) siempre procesamos primero el chunk donde está el jugador
-            if (budget > 0 && w.isChunkLoaded(pcx, pcz)) {
-                // cerca del jugador: highDetail = true
-                processChunk(w, pcx, pcz, true, paintFactor, matureAutumn);
-                budget--;
-            }
+        // 1) siempre procesamos primero el chunk donde está el jugador
+        if (budget > 0) {
+            scheduleChunkPaint(w, pcx, pcz, true, paintFactor, matureAutumn, localGridFlip);
+            budget--;
+        }
 
-            // 2) luego los chunks cercanos, priorizando delante
-            for (Offset off : offsets) {
-                if (budget <= 0) break;
-                int cx = pcx + off.dx;
-                int cz = pcz + off.dz;
-                if (!w.isChunkLoaded(cx, cz)) continue;
+        // 2) luego los chunks cercanos, priorizando delante
+        for (Offset off : offsets) {
+            if (budget <= 0) break;
+            int cx = pcx + off.dx;
+            int cz = pcz + off.dz;
 
-                boolean highDetail = matureAutumn && off.dist <= 1; // anillo 1 también full cuando ya vamos en otoño
-                processChunk(w, cx, cz, highDetail, paintFactor, matureAutumn);
+            boolean highDetail = matureAutumn && off.dist <= 1; // anillo 1 también full cuando ya vamos en otoño
+            scheduleChunkPaint(w, cx, cz, highDetail, paintFactor, matureAutumn, localGridFlip);
+            budget--;
+        }
+    }
+
+    private void scheduleChunkPaint(World w, int cx, int cz, boolean highDetail, double paintFactor,
+                                    boolean matureAutumn, boolean localGridFlip) {
+        Location chunkLoc = new Location(w, (cx << 4) + 8, w.getMinHeight(), (cz << 4) + 8);
+        plugin.getScheduler().runAtLocation(chunkLoc, task -> {
+            if (!w.isChunkLoaded(cx, cz)) return;
+            processChunk(w, cx, cz, highDetail, paintFactor, matureAutumn, localGridFlip);
+        });
+    }
+
+    private void scheduleCleanupAroundPlayer(Player p, World w, int pcx, int pcz, int budget) {
+        int radius = radiusChunks;
+        int maxRevertPerChunk = 64;
+
+        for (int cx = pcx - radius; cx <= pcx + radius && budget > 0; cx++) {
+            for (int cz = pcz - radius; cz <= pcz + radius && budget > 0; cz++) {
+                int fcx = cx;
+                int fcz = cz;
+                Location chunkLoc = new Location(w, (fcx << 4) + 8, w.getMinHeight(), (fcz << 4) + 8);
+                plugin.getScheduler().runAtLocation(chunkLoc, task -> {
+                    if (!w.isChunkLoaded(fcx, fcz)) return;
+                    revertSomeLeavesInChunk(w, fcx, fcz, maxRevertPerChunk);
+                    fixChunkResidualLeaves(w, fcx, fcz);
+                });
                 budget--;
             }
         }
@@ -217,31 +247,6 @@ public final class AutumnSoilPainter implements Runnable, Listener {
      * hojas ACACIA_LEAVES que probablemente son spruce/birch pintadas
      * que quedaron bugueadas después de un reinicio/reinstalación.
      */
-    private void healResidualAutumnLeavesAroundPlayers() {
-        int budget = chunksPerTick;
-        if (budget <= 0) budget = 2;
-
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (budget <= 0) break;
-
-            World w = p.getWorld();
-            if (w.getEnvironment() != World.Environment.NORMAL) continue;
-
-            Location loc = p.getLocation();
-            int pcx = loc.getBlockX() >> 4;
-            int pcz = loc.getBlockZ() >> 4;
-            int radius = radiusChunks;
-
-            for (int cx = pcx - radius; cx <= pcx + radius && budget > 0; cx++) {
-                for (int cz = pcz - radius; cz <= pcz + radius && budget > 0; cz++) {
-                    if (!w.isChunkLoaded(cx, cz)) continue;
-                    fixChunkResidualLeaves(w, cx, cz);
-                    budget--;
-                }
-            }
-        }
-    }
-
     private void fixChunkResidualLeaves(World w, int cx, int cz) {
         int minY = w.getMinHeight();
         int maxY = w.getMaxHeight();
@@ -351,7 +356,8 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     private void processChunk(World w, int cx, int cz,
                               boolean highDetail,
                               double paintFactor,
-                              boolean matureAutumn) {
+                              boolean matureAutumn,
+                              boolean localGridFlip) {
 
         int minY = w.getMinHeight();
         int maxY = w.getMaxHeight();
@@ -367,7 +373,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
         int stepXZ = (matureAutumn && highDetail) ? 1 : 2;
         int startOffset = 0;
         if (stepXZ == 2) {
-            startOffset = gridFlip ? 0 : 1; // un tick pares, otro impares
+            startOffset = localGridFlip ? 0 : 1; // un tick pares, otro impares
         }
 
         for (int lx = startOffset; lx < 16; lx += stepXZ) {
@@ -483,7 +489,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
      * Revertimos hasta "maxBlocks" hojas pintadas por tick,
      * sólo si el chunk está cargado.
      */
-    private void revertSomeLeaves(int maxBlocks) {
+    private void revertSomeLeavesInChunk(World w, int cx, int cz, int maxBlocks) {
         if (maxBlocks <= 0) return;
 
         Iterator<Map.Entry<String, Material>> it = paintedLeaves.entrySet().iterator();
@@ -506,8 +512,8 @@ public final class AutumnSoilPainter implements Runnable, Listener {
                 continue;
             }
 
-            World w = Bukkit.getWorld(worldId);
-            if (w == null) {
+            World entryWorld = Bukkit.getWorld(worldId);
+            if (entryWorld == null) {
                 it.remove();
                 continue;
             }
@@ -522,7 +528,15 @@ public final class AutumnSoilPainter implements Runnable, Listener {
                 continue;
             }
 
-            if (!w.isChunkLoaded(x >> 4, z >> 4)) {
+            if (entryWorld != w) {
+                continue;
+            }
+
+            if ((x >> 4) != cx || (z >> 4) != cz) {
+                continue;
+            }
+
+            if (!w.isChunkLoaded(cx, cz)) {
                 continue;
             }
 

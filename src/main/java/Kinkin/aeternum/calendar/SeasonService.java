@@ -9,7 +9,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerBedLeaveEvent;
-import org.bukkit.scheduler.BukkitTask;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,8 +29,8 @@ public final class SeasonService implements Listener, Runnable {
     private CalendarState state;
 
     // tareas
-    private BukkitTask rtTask;       // tiempo real (si se usa)
-    private BukkitTask worldClock;   // seguidor de reloj overworld
+    private WrappedTask rtTask;       // tiempo real (si se usa)
+    private WrappedTask worldClock;   // seguidor de reloj overworld
 
     // seguimiento de día del mundo (fullTime/24000)
     private long lastWorldDayIdx = Long.MIN_VALUE;
@@ -85,14 +85,14 @@ public final class SeasonService implements Listener, Runnable {
         if (realTimeMinutesPerDay > 0) {
             if (rtTask != null) rtTask.cancel(); // Cancelar por seguridad
             long period = 20L * 60L * realTimeMinutesPerDay;
-            this.rtTask = Bukkit.getScheduler().runTaskTimer(plugin, this, period, period);
+            this.rtTask = plugin.getScheduler().runTimer(this, period, period);
         }
 
         // Seguir reloj del mundo (recomendado)
         if (followOverworldTime) {
             if (worldClock != null) worldClock.cancel(); // Cancelar por seguridad
             // chequeo suave cada 10 ticks
-            this.worldClock = Bukkit.getScheduler().runTaskTimer(plugin, this::tickWorldClock, 40L, 10L);
+            this.worldClock = plugin.getScheduler().runTimer(this::tickWorldClock, 40L, 10L);
         }
     }
 

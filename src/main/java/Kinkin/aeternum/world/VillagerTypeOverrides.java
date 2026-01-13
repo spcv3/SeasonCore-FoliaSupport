@@ -206,7 +206,7 @@ public final class VillagerTypeOverrides implements Listener {
         if (!enabled) return;
 
         // Un pequeño delay para que el jugador cargue chunks
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        plugin.getScheduler().runLater(() -> {
             if (e.getPlayer().isOnline()) {
                 maybeUpdateVillagersIfPeriodPassed();
             }
@@ -253,7 +253,7 @@ public final class VillagerTypeOverrides implements Listener {
         plugin.getLogger().info("[VillagerTypes] Have approved at least " + UPDATE_PERIOD
                 + " days since the last rotation (" + previousDay + " -> " + currentCalendarDay + "). Updating villagers close to players.");
 
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        plugin.getScheduler().runNextTick(task -> {
             performVillageUpdate();
             lastUpdateDay = currentCalendarDay;
             saveState();

@@ -5,7 +5,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,12 +62,9 @@ public final class SeasonGuideService implements Listener {
         // Lo marcamos ya para que no se repita aunque se desconecte
         markSeenGuide(p.getUniqueId());
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (!p.isOnline()) return;
-                SeasonGuide.sendGuide(p, plugin);
-            }
-        }.runTaskLater(plugin, 60L); // ~3 segundos
+        plugin.getScheduler().runLater(() -> {
+            if (!p.isOnline()) return;
+            SeasonGuide.sendGuide(p, plugin);
+        }, 60L); // ~3 segundos
     }
 }
