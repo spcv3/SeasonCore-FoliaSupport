@@ -69,8 +69,9 @@ biome_spoof:
   enabled: true
   mode: "GLOBAL_RING"      # <-- no "GLOBAL"
   radius_chunks: 6
-  budget_chunks_per_tick: 8
-  tick_period_ticks: 20
+  budget_chunks_per_tick: 2
+  tick_period_ticks: 40
+  prioritize_view: false
   revert_on_non_winter: true
   spawn_guard:
     enabled: true

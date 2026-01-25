@@ -61,6 +61,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private boolean oceansAffectRivers;
     private boolean oceansAffectShores;        // NUEVO
     private boolean oceansKeepDeepVariants;
+    private boolean prioritizeView;
 
     private boolean riversEnabled;            // NUEVO
     private final EnumMap<Season, Biome> oceanTarget = new EnumMap<>(Season.class);
@@ -108,6 +109,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private final Map<Integer, List<Offset>> offsetCache = new ConcurrentHashMap<>();
     private final Map<Long, Family> familyCache = new ConcurrentHashMap<>();
     private final Map<Long, Biome> originalBiomeCache = new ConcurrentHashMap<>();
+    private final Map<Long, Biome> lastAppliedTarget = new ConcurrentHashMap<>();
 
 
 
@@ -164,6 +166,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         this.oceansAffectRivers = plugin.cfg.climate.getBoolean("biome_spoof.oceans.affect_rivers", true);
         this.oceansAffectShores = plugin.cfg.climate.getBoolean("biome_spoof.oceans.affect_shores", true); // NUEVO
         this.oceansKeepDeepVariants = plugin.cfg.climate.getBoolean("biome_spoof.oceans.keep_deep_variants", true);
+        this.prioritizeView = plugin.cfg.climate.getBoolean("biome_spoof.prioritize_view", false);
 
         oceanTarget.put(Season.SPRING, readBiome("biome_spoof.oceans.seasons.SPRING", Biome.LUKEWARM_OCEAN));
         oceanTarget.put(Season.SUMMER, readBiome("biome_spoof.oceans.seasons.SUMMER", Biome.WARM_OCEAN));
@@ -181,6 +184,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
 
         familyCache.clear();
         originalBiomeCache.clear();
+        lastAppliedTarget.clear();
     }
 
     private Biome readBiome(String path, Biome def) {
@@ -229,6 +233,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         backups.remove(k);
         familyCache.remove(k);
         originalBiomeCache.remove(k);
+        lastAppliedTarget.remove(k);
 
         for (java.util.concurrent.ConcurrentLinkedDeque<Long> q : nudgeQueue.values()) {
             q.remove(k);
@@ -318,15 +323,6 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         int pcx = loc.getBlockX() >> 4;
         int pcz = loc.getBlockZ() >> 4;
 
-        // dirección de mirada (solo plano XZ)
-        Vector look = loc.getDirection().clone();
-        look.setY(0);
-        if (look.lengthSquared() < 1e-4) {
-            look = new Vector(0, 0, 1);
-        } else {
-            look.normalize();
-        }
-
         // 1) procesar SIEMPRE el chunk donde está el jugador primero
         scheduleChunkSpoof(p, w, pcx, pcz,
                 currentTarget, nextTarget,
@@ -336,15 +332,24 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
 
         if (remaining.get() <= 0) return;
 
-        // 2) offsets precomputados + orden por:
-        //    - distancia Chebyshev (más cerca primero)
-        //    - adelante de la vista del jugador (más "forward" primero)
-        List<Offset> offsets = new ArrayList<>(getBaseOffsets(radius));
-        final double lookX = look.getX();
-        final double lookZ = look.getZ();
-        offsets.sort(Comparator
-                .comparingInt((Offset o) -> o.dist)
-                .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
+        // 2) offsets precomputados (ordenados por distancia)
+        List<Offset> offsets = getBaseOffsets(radius);
+        if (prioritizeView) {
+            // ordenamos por distancia + preferencia de mirada
+            offsets = new ArrayList<>(offsets);
+            Vector look = loc.getDirection().clone();
+            look.setY(0);
+            if (look.lengthSquared() < 1e-4) {
+                look = new Vector(0, 0, 1);
+            } else {
+                look.normalize();
+            }
+            final double lookX = look.getX();
+            final double lookZ = look.getZ();
+            offsets.sort(Comparator
+                    .comparingInt((Offset o) -> o.dist)
+                    .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
+        }
 
         // 3) aplicar spoof según presupuesto
         for (Offset off : offsets) {
@@ -390,8 +395,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
                 return;
             }
 
-            if (isChunkAtTarget(ch, chunkTarget)) {
-                return; // ya está al bioma objetivo, no tocamos
+            Biome lastTarget = lastAppliedTarget.get(ck);
+            if (chunkTarget.equals(lastTarget)) {
+                return; // ya está al bioma objetivo según cache, no tocamos
             }
 
             Biome[] old = captureAndApply(ch, chunkTarget);
@@ -420,6 +426,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
                     list.add(new Offset(dx, dz, dist, invLen));
                 }
             }
+            list.sort(Comparator.comparingInt(o -> o.dist));
             return list;
         });
     }
@@ -445,29 +452,6 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
             return original; // por seguridad, si falta en config
         }
         return global;       // aplica el bioma de estación a cualquier LAND
-    }
-
-    /**
-     * Comprueba rápidamente si el chunk ya está completamente teñido
-     * al bioma objetivo (muestreo grueso).
-     */
-    private boolean isChunkAtTarget(Chunk ch, Biome target) {
-        World w = ch.getWorld();
-        int bx = ch.getX() << 4;
-        int bz = ch.getZ() << 4;
-        int minY = w.getMinHeight();
-        int maxY = w.getMaxHeight();
-
-        for (int x = 0; x < 16; x += 8) {
-            for (int z = 0; z < 16; z += 8) {
-                for (int y = minY; y < maxY; y += 32) {
-                    if (w.getBiome(bx + x, y, bz + z) != target) {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
     }
 
     /** Consideramos "frío" cualquier bioma con nieve/hielo en el nombre, montañas, etc. */
@@ -736,7 +720,8 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
             }
 
             if (!anyChange) {
-                // Nada que pintar; no refrescamos ni guardamos backup.
+                // Nada que pintar; cacheamos el objetivo para evitar reintentos.
+                lastAppliedTarget.put(k, target);
                 return null;
             }
 
@@ -755,6 +740,8 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
 
             // solo refrescamos si hubo cambios
             w.refreshChunk(ch.getX(), ch.getZ());
+
+            lastAppliedTarget.put(k, target);
 
             if (prevs != null) {
                 Biome[] arr = prevs.toArray(new Biome[0]);
@@ -801,6 +788,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
 
             // pequeño nudge adicional (no es estrictamente necesario, pero ayuda en algunos casos)
             nudgeViewers(w, ch.getX(), ch.getZ());
+            lastAppliedTarget.remove(key(ch));
         } catch (Throwable t) {
             plugin.getLogger().warning("[BiomeSpoof] revert error " + ch.getX() + "," + ch.getZ() + ": " + t.getMessage());
         }
@@ -836,6 +824,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         backups.clear();
         nudgeQueue.clear();
         nudgeLast.clear();
+        lastAppliedTarget.clear();
     }
 
     /**
