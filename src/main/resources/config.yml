@@ -9,3 +9,9 @@ worlds:
   # should not apply visual effects (bossbar, weather, biomes, etc.).
   disabled_season_fx:
     - world_nether
+
+guide:
+  # Enable/disable the seasons guide book and command.
+  book_enabled: true
+  # Give the book automatically to first-time players.
+  auto_give_on_first_join: true

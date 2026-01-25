@@ -83,6 +83,8 @@ public final class WinterWorldPainter implements Listener, Runnable {
     private long    meltPeriod;       // si 0, usa period
     private int     meltBudgetPerTick;
     private boolean meltAlsoIce;
+    private int     meltScanDepth;
+    private int     startupMeltScanDepth;
 
     // Autumn foliage
     private boolean autumnFoliageEnabled;
@@ -140,6 +142,8 @@ public final class WinterWorldPainter implements Listener, Runnable {
         this.meltPeriod        = plugin.cfg.climate.getLong("real_snow.melt.tick_period_ticks", 0L); // 0 = usar period
         this.meltBudgetPerTick = plugin.cfg.climate.getInt("real_snow.melt.budget_blocks_per_tick", 300);
         this.meltAlsoIce       = plugin.cfg.climate.getBoolean("real_snow.melt.also_ice", true);
+        this.meltScanDepth     = Math.max(8, plugin.cfg.climate.getInt("real_snow.melt.max_scan_depth", 48));
+        this.startupMeltScanDepth = Math.max(8, plugin.cfg.climate.getInt("real_snow.startup_melt.max_scan_depth", 64));
 
         this.autumnFoliageEnabled      = plugin.cfg.climate.getBoolean("autumn_foliage.enabled", true);
         this.autumnRadiusBlocks        = plugin.cfg.climate.getInt("autumn_foliage.radius_blocks", 48);
@@ -150,6 +154,8 @@ public final class WinterWorldPainter implements Listener, Runnable {
         // límites duros
         this.budget = Math.min(this.budget, 40);
         this.meltBudgetPerTick = Math.min(this.meltBudgetPerTick, 400);
+        this.meltScanDepth = Math.min(this.meltScanDepth, 256);
+        this.startupMeltScanDepth = Math.min(this.startupMeltScanDepth, 256);
         this.autumnPaintBudgetPerTick = Math.min(this.autumnPaintBudgetPerTick, 40);
         this.autumnRevertBudgetPerTick = Math.min(this.autumnRevertBudgetPerTick, 80);
 
@@ -331,16 +337,18 @@ public final class WinterWorldPainter implements Listener, Runnable {
 
             if (naturallySnowy) continue; // nunca tocar nieve natural
 
-            int minY = w.getMinHeight();
-            int maxY = w.getMaxHeight();
-
             int baseX = ch.getX() << 4;
             int baseZ = ch.getZ() << 4;
 
             for (int x = 0; x < 16; x++) {
                 for (int z = 0; z < 16; z++) {
-                    for (int y = maxY - 1; y >= minY; y--) {
-                        Block b = w.getBlockAt(baseX + x, y, baseZ + z);
+                    int worldX = baseX + x;
+                    int worldZ = baseZ + z;
+                    int topY = w.getHighestBlockYAt(worldX, worldZ);
+                    int minY = Math.max(w.getMinHeight(), topY - startupMeltScanDepth);
+
+                    for (int y = topY; y >= minY; y--) {
+                        Block b = w.getBlockAt(worldX, y, worldZ);
                         Material t = b.getType();
 
                         if (t == Material.SNOW || t == Material.SNOW_BLOCK) {
@@ -444,10 +452,11 @@ public final class WinterWorldPainter implements Listener, Runnable {
         for (Player p : players) {
             if (remainingGlobal <= 0) break;
 
+            Location baseLoc = p.getLocation();
             World w = p.getWorld();
             if (w.getEnvironment() != World.Environment.NORMAL) continue;
 
-            boolean anyCold = isColdAround(w, p.getLocation(), Math.min(24, radius));
+            boolean anyCold = isColdAround(w, baseLoc, Math.min(24, radius));
             boolean storming = w.hasStorm() && anyCold;
 
             int    thisBudget    = remainingGlobal;
@@ -467,8 +476,8 @@ public final class WinterWorldPainter implements Listener, Runnable {
             for (int i = 0; i < thisBudget && remainingGlobal > 0; i++) {
                 int dx = r.nextInt(-thisRadius, thisRadius + 1);
                 int dz = r.nextInt(-thisRadius, thisRadius + 1);
-                int x = p.getLocation().getBlockX() + dx;
-                int z = p.getLocation().getBlockZ() + dz;
+                int x = baseLoc.getBlockX() + dx;
+                int z = baseLoc.getBlockZ() + dz;
 
                 int y = w.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
                 Block highest = w.getBlockAt(x, y, z);
@@ -915,14 +924,18 @@ public final class WinterWorldPainter implements Listener, Runnable {
         if (players.isEmpty()) return;
         Collections.shuffle(players, rnd);
 
+        boolean hasProtectedSnow = !protectedSnow.isEmpty();
+        boolean hasProtectedIce = !protectedIce.isEmpty();
+
         for (Player p : players) {
             if (remaining <= 0) break;
 
             World w = p.getWorld();
             if (w.getEnvironment() != World.Environment.NORMAL) continue;
 
-            int px = p.getLocation().getBlockX();
-            int pz = p.getLocation().getBlockZ();
+            Location baseLoc = p.getLocation();
+            int px = baseLoc.getBlockX();
+            int pz = baseLoc.getBlockZ();
 
             int rad = radius * 2;
             int colsPerPlayer = Math.min(remaining, 32);
@@ -931,8 +944,8 @@ public final class WinterWorldPainter implements Listener, Runnable {
                 int x = px + rnd.nextInt(-rad, rad + 1);
                 int z = pz + rnd.nextInt(-rad, rad + 1);
 
-                int topY = w.getMaxHeight() - 1;
-                int minY = w.getMinHeight();
+                int topY = w.getHighestBlockYAt(x, z);
+                int minY = Math.max(w.getMinHeight(), topY - meltScanDepth);
 
                 for (int y = topY; y >= minY && remaining > 0; y--) {
                     Block b = w.getBlockAt(x, y, z);
@@ -950,13 +963,16 @@ public final class WinterWorldPainter implements Listener, Runnable {
                         }
 
                         // ✅ NUEVO: si fue puesta por jugador, no tocarla
-                        String k = key(b);
+                        String k = null;
+                        if (hasProtectedSnow || hasProtectedIce) {
+                            k = key(b);
+                        }
 
                         // ✅ NUEVO: respetar lo del jugador
-                        if ((type == Material.SNOW || type == Material.SNOW_BLOCK) && protectedSnow.contains(k)) {
+                        if ((type == Material.SNOW || type == Material.SNOW_BLOCK) && hasProtectedSnow && protectedSnow.contains(k)) {
                             continue;
                         }
-                        if ((type == Material.ICE || type == Material.FROSTED_ICE) && protectedIce.contains(k)) {
+                        if ((type == Material.ICE || type == Material.FROSTED_ICE) && hasProtectedIce && protectedIce.contains(k)) {
                             continue;
                         }
                     }
@@ -1021,6 +1037,9 @@ public final class WinterWorldPainter implements Listener, Runnable {
         World w = p.getWorld();
         if (w.getEnvironment() != World.Environment.NORMAL) return;
 
+        boolean hasProtectedSnow = !protectedSnow.isEmpty();
+        boolean hasProtectedIce = !protectedIce.isEmpty();
+
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         int px = p.getLocation().getBlockX();
         int pz = p.getLocation().getBlockZ();
@@ -1036,8 +1055,8 @@ public final class WinterWorldPainter implements Listener, Runnable {
                 if (globalRemaining.get() <= 0) return;
                 if (!w.isChunkLoaded(x >> 4, z >> 4)) return;
 
-                int topY = w.getMaxHeight() - 1;
-                int minY = w.getMinHeight();
+                int topY = w.getHighestBlockYAt(x, z);
+                int minY = Math.max(w.getMinHeight(), topY - meltScanDepth);
 
                 for (int y = topY; y >= minY && globalRemaining.get() > 0; y--) {
                     Block b = w.getBlockAt(x, y, z);
@@ -1051,11 +1070,14 @@ public final class WinterWorldPainter implements Listener, Runnable {
                             continue;
                         }
 
-                        String k = key(b);
-                        if ((type == Material.SNOW || type == Material.SNOW_BLOCK) && protectedSnow.contains(k)) {
+                        String k = null;
+                        if (hasProtectedSnow || hasProtectedIce) {
+                            k = key(b);
+                        }
+                        if ((type == Material.SNOW || type == Material.SNOW_BLOCK) && hasProtectedSnow && protectedSnow.contains(k)) {
                             continue;
                         }
-                        if ((type == Material.ICE || type == Material.FROSTED_ICE) && protectedIce.contains(k)) {
+                        if ((type == Material.ICE || type == Material.FROSTED_ICE) && hasProtectedIce && protectedIce.contains(k)) {
                             continue;
                         }
                     }

@@ -39,6 +39,9 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     // radio en chunks alrededor del jugador
     private int radiusChunks;
 
+    // periodo del task
+    private long tickPeriod;
+
     // probabilidad base de recolorear cada bloque de hojas
     private double leafChancePerBlock;
 
@@ -57,12 +60,12 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     private static final class Offset {
         final int dx, dz;
         final int dist;
-        final double forwardScore;
-        Offset(int dx, int dz, int dist, double forwardScore) {
+        final double invLen;
+        Offset(int dx, int dz, int dist, double invLen) {
             this.dx = dx;
             this.dz = dz;
             this.dist = dist;
-            this.forwardScore = forwardScore;
+            this.invLen = invLen;
         }
     }
 
@@ -73,6 +76,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
 
     // flip para alternar el patrón de columnas (anti-parches)
     private boolean gridFlip = false;
+    private final Map<Integer, List<Offset>> offsetCache = new ConcurrentHashMap<>();
 
     public AutumnSoilPainter(AeternumSeasonsPlugin plugin, SeasonService seasons) {
         this.plugin = plugin;
@@ -93,6 +97,8 @@ public final class AutumnSoilPainter implements Runnable, Listener {
                 y.getInt("autumn_soil.radius_chunks", 4)
         );
 
+        this.tickPeriod = Math.max(5L, y.getLong("autumn_soil.tick_period_ticks", 10L));
+
         this.leafChancePerBlock = y.getDouble("autumn_soil.leaf_chance_per_block", 1.0);
         if (this.leafChancePerBlock < 0.0) this.leafChancePerBlock = 0.0;
         if (this.leafChancePerBlock > 1.0) this.leafChancePerBlock = 1.0;
@@ -101,7 +107,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     public void register() {
         if (task != null) task.cancel();
         if (!plugin.cfg.climate.getBoolean("autumn_soil.enabled", false)) return;
-        this.task = plugin.getScheduler().runTimer(this, 60L, 5L);
+        this.task = plugin.getScheduler().runTimer(this, 60L, tickPeriod);
 
         // registrar como listener
         Bukkit.getPluginManager().registerEvents(this, plugin);
@@ -175,26 +181,12 @@ public final class AutumnSoilPainter implements Runnable, Listener {
 
         int radius = radiusChunks;
 
-        List<Offset> offsets = new ArrayList<>();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                int dist = Math.max(Math.abs(dx), Math.abs(dz));
-                if (dist == 0) continue; // el chunk del jugador lo procesamos aparte
-
-                Vector dir = new Vector(dx, 0, dz);
-                double forward;
-                if (dir.lengthSquared() < 1e-4) {
-                    forward = 0.0;
-                } else {
-                    dir.normalize();
-                    forward = look.dot(dir);
-                }
-                offsets.add(new Offset(dx, dz, dist, forward));
-            }
-        }
+        List<Offset> offsets = new ArrayList<>(getBaseOffsets(radius));
+        final double lookX = look.getX();
+        final double lookZ = look.getZ();
         offsets.sort(java.util.Comparator
                 .comparingInt((Offset o) -> o.dist)
-                .thenComparingDouble(o -> -o.forwardScore));
+                .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
 
         // 1) siempre procesamos primero el chunk donde está el jugador
         if (budget > 0) {
@@ -212,6 +204,22 @@ public final class AutumnSoilPainter implements Runnable, Listener {
             scheduleChunkPaint(w, cx, cz, highDetail, paintFactor, matureAutumn, localGridFlip);
             budget--;
         }
+    }
+
+    private List<Offset> getBaseOffsets(int radius) {
+        return offsetCache.computeIfAbsent(radius, r -> {
+            List<Offset> list = new ArrayList<>();
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    int dist = Math.max(Math.abs(dx), Math.abs(dz));
+                    if (dist == 0) continue;
+                    double len = Math.sqrt((double) dx * dx + (double) dz * dz);
+                    double invLen = (len > 1e-4) ? (1.0 / len) : 0.0;
+                    list.add(new Offset(dx, dz, dist, invLen));
+                }
+            }
+            return list;
+        });
     }
 
     private void scheduleChunkPaint(World w, int cx, int cz, boolean highDetail, double paintFactor,

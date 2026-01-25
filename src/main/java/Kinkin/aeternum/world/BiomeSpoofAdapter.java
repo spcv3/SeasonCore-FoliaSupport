@@ -48,6 +48,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private Mode mode;
     private int radiusChunksCfg;
     private int budgetPerTick;
+    private long tickPeriod;
 
     // config legacy (solo para logging, ya no hacemos revert global en cambio de estación)
     private boolean revertOnSeasonChange;
@@ -104,6 +105,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     /* ===================================================================== */
 
     private final Kinkin.aeternum.world.BiomeBackupStore diskBackups;
+    private final Map<Integer, List<Offset>> offsetCache = new ConcurrentHashMap<>();
+    private final Map<Long, Family> familyCache = new ConcurrentHashMap<>();
+    private final Map<Long, Biome> originalBiomeCache = new ConcurrentHashMap<>();
 
 
 
@@ -114,13 +118,13 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private static final class Offset {
         final int dx, dz;
         final int dist;            // distancia Chebyshev
-        final double forwardScore; // qué tanto está "adelante" del jugador
+        final double invLen;       // 1/len para score forward sin crear Vectors
 
-        Offset(int dx, int dz, int dist, double forwardScore) {
+        Offset(int dx, int dz, int dist, double invLen) {
             this.dx = dx;
             this.dz = dz;
             this.dist = dist;
-            this.forwardScore = forwardScore;
+            this.invLen = invLen;
         }
     }
 
@@ -147,6 +151,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
 
         this.radiusChunksCfg = Math.max(1, plugin.cfg.climate.getInt("biome_spoof.radius_chunks", 8));
         this.budgetPerTick   = Math.max(2, plugin.cfg.climate.getInt("biome_spoof.budget_chunks_per_tick", 16));
+        this.tickPeriod      = Math.max(5L, plugin.cfg.climate.getLong("biome_spoof.tick_period_ticks", 20L));
         this.revertOnSeasonChange = plugin.cfg.climate.getBoolean("biome_spoof.revert_on_non_winter", true);
 
         seasonTarget.put(Season.SPRING,  readBiome("biome_spoof.seasons.SPRING",  Biome.FLOWER_FOREST));
@@ -174,6 +179,8 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         riverTarget.put(Season.WINTER, readBiome("biome_spoof.rivers.seasons.WINTER", Biome.FROZEN_RIVER));
         /* ====================================================== */
 
+        familyCache.clear();
+        originalBiomeCache.clear();
     }
 
     private Biome readBiome(String path, Biome def) {
@@ -190,7 +197,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         Bukkit.getPluginManager().registerEvents(this, plugin);
         if (task != null) task.cancel();
         // cada 10 ticks (~500 ms) es suficiente para un efecto suave
-        this.task = plugin.getScheduler().runTimer(this, 40L, 10L);
+        this.task = plugin.getScheduler().runTimer(this, 40L, tickPeriod);
     }
 
     public void unregister() {
@@ -220,6 +227,8 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
             revertChunk(ch);
         }
         backups.remove(k);
+        familyCache.remove(k);
+        originalBiomeCache.remove(k);
 
         for (java.util.concurrent.ConcurrentLinkedDeque<Long> q : nudgeQueue.values()) {
             q.remove(k);
@@ -327,32 +336,15 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
 
         if (remaining.get() <= 0) return;
 
-        // 2) generar offsets ordenados por:
+        // 2) offsets precomputados + orden por:
         //    - distancia Chebyshev (más cerca primero)
         //    - adelante de la vista del jugador (más "forward" primero)
-        List<Offset> offsets = new ArrayList<>();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx == 0 && dz == 0) continue; // ya procesamos el centro
-
-                int dist = Math.max(Math.abs(dx), Math.abs(dz));
-
-                Vector dir = new Vector(dx, 0, dz);
-                double forwardScore;
-                if (dir.lengthSquared() < 1e-4) {
-                    forwardScore = 0.0;
-                } else {
-                    dir.normalize();
-                    forwardScore = look.dot(dir); // >0 = delante, <0 = detrás
-                }
-
-                offsets.add(new Offset(dx, dz, dist, forwardScore));
-            }
-        }
-
+        List<Offset> offsets = new ArrayList<>(getBaseOffsets(radius));
+        final double lookX = look.getX();
+        final double lookZ = look.getZ();
         offsets.sort(Comparator
                 .comparingInt((Offset o) -> o.dist)
-                .thenComparingDouble(o -> -o.forwardScore));
+                .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
 
         // 3) aplicar spoof según presupuesto
         for (Offset off : offsets) {
@@ -415,6 +407,22 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     }
 
     /* ===== helpers ===== */
+
+    private List<Offset> getBaseOffsets(int radius) {
+        return offsetCache.computeIfAbsent(radius, r -> {
+            List<Offset> list = new ArrayList<>();
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    int dist = Math.max(Math.abs(dx), Math.abs(dz));
+                    double len = Math.sqrt((double) dx * dx + (double) dz * dz);
+                    double invLen = (len > 1e-4) ? (1.0 / len) : 0.0;
+                    list.add(new Offset(dx, dz, dist, invLen));
+                }
+            }
+            return list;
+        });
+    }
 
     private Biome getRepresentativeOriginalOceanBiome(Chunk ch) {
         long k = key(ch);
@@ -509,15 +517,31 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private Family classifyOriginalFamily(Chunk ch) {
         long k = key(ch);
 
+        Family cached = familyCache.get(k);
+        if (cached != null) {
+            return cached;
+        }
+
         Biome[] old = backups.get(k);
         if (old != null && old.length > 0) {
-            for (Biome b : old) {
+            for (int i = 0; i < old.length; i++) {
+                Biome b = old[i];
                 if (oceansEnabled) {
-                    if (isOceanBiome(b)) return Family.OCEAN;
-                    if (oceansAffectShores && isShoreBiome(b)) return Family.OCEAN;
+                    if (isOceanBiome(b)) {
+                        familyCache.put(k, Family.OCEAN);
+                        return Family.OCEAN;
+                    }
+                    if (oceansAffectShores && isShoreBiome(b)) {
+                        familyCache.put(k, Family.OCEAN);
+                        return Family.OCEAN;
+                    }
                 }
-                if (riversEnabled && isRiverBiome(b)) return Family.RIVER;
+                if (riversEnabled && isRiverBiome(b)) {
+                    familyCache.put(k, Family.RIVER);
+                    return Family.RIVER;
+                }
             }
+            familyCache.put(k, Family.LAND);
             return Family.LAND;
         }
 
@@ -525,22 +549,32 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         int bx = ch.getX() << 4;
         int bz = ch.getZ() << 4;
         int minY = w.getMinHeight();
-        int maxY = w.getMaxHeight();
+        int maxY = w.getMaxHeight() - 1;
+        int sampleY = w.getSeaLevel();
+        if (sampleY < minY) sampleY = minY;
+        if (sampleY > maxY) sampleY = maxY;
 
         for (int x = 0; x < 16; x += 8) {
             for (int z = 0; z < 16; z += 8) {
-                for (int y = minY; y < maxY; y += 32) {
-                    Biome b = w.getBiome(bx + x, y, bz + z);
-
-                    if (oceansEnabled) {
-                        if (isOceanBiome(b)) return Family.OCEAN;
-                        if (oceansAffectShores && isShoreBiome(b)) return Family.OCEAN;
+                Biome b = w.getBiome(bx + x, sampleY, bz + z);
+                if (oceansEnabled) {
+                    if (isOceanBiome(b)) {
+                        familyCache.put(k, Family.OCEAN);
+                        return Family.OCEAN;
                     }
-                    if (riversEnabled && isRiverBiome(b)) return Family.RIVER;
+                    if (oceansAffectShores && isShoreBiome(b)) {
+                        familyCache.put(k, Family.OCEAN);
+                        return Family.OCEAN;
+                    }
+                }
+                if (riversEnabled && isRiverBiome(b)) {
+                    familyCache.put(k, Family.RIVER);
+                    return Family.RIVER;
                 }
             }
         }
 
+        familyCache.put(k, Family.LAND);
         return Family.LAND;
     }
 
@@ -551,25 +585,29 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
      */
     private Biome getRepresentativeOriginalBiome(Chunk ch) {
         long k = key(ch);
+        Biome cached = originalBiomeCache.get(k);
+        if (cached != null) {
+            return cached;
+        }
+
         Biome[] old = backups.get(k);
         if (old != null && old.length > 0) {
-            return old[0];
+            Biome b = old[0];
+            originalBiomeCache.put(k, b);
+            return b;
         }
 
         World w = ch.getWorld();
         int bx = ch.getX() << 4;
         int bz = ch.getZ() << 4;
         int minY = w.getMinHeight();
-        int maxY = w.getMaxHeight();
-
-        for (int x = 0; x < 16; x += 8) {
-            for (int z = 0; z < 16; z += 8) {
-                for (int y = minY; y < maxY; y += 32) {
-                    return w.getBiome(bx + x, y, bz + z);
-                }
-            }
-        }
-        return Biome.OCEAN;
+        int maxY = w.getMaxHeight() - 1;
+        int sampleY = w.getSeaLevel();
+        if (sampleY < minY) sampleY = minY;
+        if (sampleY > maxY) sampleY = maxY;
+        Biome b = w.getBiome(bx + 8, sampleY, bz + 8);
+        originalBiomeCache.put(k, b);
+        return b;
     }
 
     /**
@@ -1039,7 +1077,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         if (enabled) {
             mode = Mode.GLOBAL_RING;
             if (task == null || task.isCancelled()) {
-                task = plugin.getScheduler().runTimer(this, 40L, 10L);
+                task = plugin.getScheduler().runTimer(this, 40L, tickPeriod);
             }
         } else {
             mode = Mode.OFF;

@@ -48,6 +48,11 @@ public final class CmdSeasonGuide implements CommandExecutor, TabCompleter, List
             return true;
         }
 
+        if (!isGuideBookEnabled()) {
+            p.sendMessage("§cThe seasons guide book is disabled by config.");
+            return true;
+        }
+
         giveGuide(p, true); // true = vino del comando
         return true;
     }
@@ -62,6 +67,8 @@ public final class CmdSeasonGuide implements CommandExecutor, TabCompleter, List
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
         Player p = e.getPlayer();
+        if (!isGuideBookEnabled()) return;
+        if (!plugin.getConfig().getBoolean("guide.auto_give_on_first_join", true)) return;
         if (!p.hasPlayedBefore()) {
             // Primera vez en el servidor → regalamos la guía
             giveGuide(p, false);
@@ -296,5 +303,9 @@ public final class CmdSeasonGuide implements CommandExecutor, TabCompleter, List
             case AUTUMN -> "§6"; // naranja otoñal
             case WINTER -> "§3"; // azul frío
         };
+    }
+
+    private boolean isGuideBookEnabled() {
+        return plugin.getConfig().getBoolean("guide.book_enabled", true);
     }
 }

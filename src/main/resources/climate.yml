@@ -34,14 +34,15 @@ seasonal_weather:
 real_snow:
   enabled: true
   worldguard_respect_regions: true
-  tick_period_ticks: 10
-  max_columns_per_tick: 24
-  radius_blocks: 32
+  tick_period_ticks: 20
+  max_columns_per_tick: 8
+  radius_blocks: 24
   freeze_water: true
 
   startup_melt:
     enabled: true
     chunks_per_tick: 1
+    max_scan_depth: 64
 
   storm_boost:
     enabled: true
@@ -53,12 +54,13 @@ real_snow:
   melt:
     enabled: true
     tick_period_ticks: 0
-    budget_blocks_per_tick: 300
+    budget_blocks_per_tick: 120
     also_ice: true
+    max_scan_depth: 48
 
   canopy:
     enabled: true
-    attempts_per_tick: 10      # columnas a probar / columns to test
+    attempts_per_tick: 4       # columnas a probar / columns to test
     radius_blocks: 24          # radio alrededor del jugador / radius around player
     max_leaf_scan_height: 6    # bloques encima buscar hojas / blocks above to scan leaves
     only_in_cold_biomes: true  # sólo en biomas naturalmente nevados / only in naturally snowy biomes
@@ -66,8 +68,9 @@ real_snow:
 biome_spoof:
   enabled: true
   mode: "GLOBAL_RING"      # <-- no "GLOBAL"
-  radius_chunks: 8
-  budget_chunks_per_tick: 16
+  radius_chunks: 6
+  budget_chunks_per_tick: 8
+  tick_period_ticks: 20
   revert_on_non_winter: true
   spawn_guard:
     enabled: true
@@ -100,6 +103,7 @@ biome_spoof:
 
 autumn_soil:
   enabled: true
+  tick_period_ticks: 10
   attempts_per_tick: 4      # entre más alto, más rápido pinta / higher = faster painting
   chance_per_column: 1.0    # pinta TODAS las columnas / paints ALL columns
   radius_chunks: 4
@@ -107,9 +111,9 @@ autumn_soil:
 
 autumn_foliage:
   enabled: true
-  radius_blocks: 160     # ~10 chunks
-  paint_budget_per_tick: 120
-  revert_budget_per_tick: 120
+  radius_blocks: 96     # ~6 chunks
+  paint_budget_per_tick: 40
+  revert_budget_per_tick: 40
   revert_on_non_autumn: true
 
 migration:
