@@ -72,6 +72,7 @@ biome_spoof:
   budget_chunks_per_tick: 2
   tick_period_ticks: 40
   prioritize_view: false
+  event_radius_chunks: 2
   revert_on_non_winter: true
   spawn_guard:
     enabled: true
@@ -113,6 +114,7 @@ autumn_soil:
   cleanup_enabled: false
   fix_residual_enabled: false
   cleanup_max_revert_per_chunk: 16
+  event_radius_chunks: 1
 
 autumn_foliage:
   enabled: true

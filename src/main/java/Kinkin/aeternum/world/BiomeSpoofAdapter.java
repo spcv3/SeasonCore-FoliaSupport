@@ -16,6 +16,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import com.tcoded.folialib.wrapper.task.WrappedTask;
@@ -49,6 +51,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private int radiusChunksCfg;
     private int budgetPerTick;
     private long tickPeriod;
+    private int eventRadiusChunks;
 
     // config legacy (solo para logging, ya no hacemos revert global en cambio de estación)
     private boolean revertOnSeasonChange;
@@ -110,6 +113,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
     private final Map<Long, Family> familyCache = new ConcurrentHashMap<>();
     private final Map<Long, Biome> originalBiomeCache = new ConcurrentHashMap<>();
     private final Map<Long, Biome> lastAppliedTarget = new ConcurrentHashMap<>();
+    private final Queue<ChunkRef> pendingChunks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final Set<Long> pendingKeys = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> lastPlayerChunk = new ConcurrentHashMap<>();
 
 
 
@@ -136,6 +142,20 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         RIVER
     }
 
+    private static final class ChunkRef {
+        final UUID worldId;
+        final int cx;
+        final int cz;
+        final long key;
+
+        ChunkRef(UUID worldId, int cx, int cz, long key) {
+            this.worldId = worldId;
+            this.cx = cx;
+            this.cz = cz;
+            this.key = key;
+        }
+    }
+
     public BiomeSpoofAdapter(AeternumSeasonsPlugin plugin, SeasonService seasons) {
         this.plugin = plugin;
         this.seasons = seasons;
@@ -154,6 +174,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         this.radiusChunksCfg = Math.max(1, plugin.cfg.climate.getInt("biome_spoof.radius_chunks", 8));
         this.budgetPerTick   = Math.max(2, plugin.cfg.climate.getInt("biome_spoof.budget_chunks_per_tick", 16));
         this.tickPeriod      = Math.max(5L, plugin.cfg.climate.getLong("biome_spoof.tick_period_ticks", 20L));
+        this.eventRadiusChunks = Math.max(0, plugin.cfg.climate.getInt("biome_spoof.event_radius_chunks", 2));
         this.revertOnSeasonChange = plugin.cfg.climate.getBoolean("biome_spoof.revert_on_non_winter", true);
 
         seasonTarget.put(Season.SPRING,  readBiome("biome_spoof.seasons.SPRING",  Biome.FLOWER_FOREST));
@@ -185,6 +206,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         familyCache.clear();
         originalBiomeCache.clear();
         lastAppliedTarget.clear();
+        pendingChunks.clear();
+        pendingKeys.clear();
+        lastPlayerChunk.clear();
     }
 
     private Biome readBiome(String path, Biome def) {
@@ -220,6 +244,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         // al cargar un chunk nuevo no queremos residuos marcados como spoofed
         spoofed.remove(k);
         // backups se mantienen si el chunk fue modificado; se limpia en onChunkUnload
+        enqueueChunk(e.getChunk().getWorld(), e.getChunk().getX(), e.getChunk().getZ());
     }
 
     @EventHandler
@@ -234,6 +259,7 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         familyCache.remove(k);
         originalBiomeCache.remove(k);
         lastAppliedTarget.remove(k);
+        pendingKeys.remove(k);
 
         for (java.util.concurrent.ConcurrentLinkedDeque<Long> q : nudgeQueue.values()) {
             q.remove(k);
@@ -251,6 +277,8 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         if (revertOnSeasonChange) {
 //            plugin.getLogger().info("[BiomeSpoof] Season changed: using smooth repaint (no global revert).");
         }
+
+        enqueueAroundOnlinePlayers(eventRadiusChunks);
     }
 
     @Override
@@ -287,81 +315,36 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         if (budget <= 0) return;
 
         java.util.concurrent.atomic.AtomicInteger remaining = new java.util.concurrent.atomic.AtomicInteger(budget);
-        Set<Long> processedThisTick = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
+        Map<UUID, Player> worldPlayers = new HashMap<>();
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (remaining.get() <= 0) break;
-            plugin.getScheduler().runAtEntity(p, task -> tickForPlayer(
-                    p,
+            worldPlayers.putIfAbsent(p.getWorld().getUID(), p);
+        }
+
+        int processed = 0;
+        Set<Long> processedThisTick = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        while (remaining.get() > 0) {
+            ChunkRef ref = pendingChunks.poll();
+            if (ref == null) break;
+            pendingKeys.remove(ref.key);
+            processed++;
+
+            World w = Bukkit.getWorld(ref.worldId);
+            if (w == null) continue;
+            if (!w.isChunkLoaded(ref.cx, ref.cz)) continue;
+
+            Player p = worldPlayers.get(ref.worldId);
+            scheduleChunkSpoof(p, w, ref.cx, ref.cz,
                     currentTarget, nextTarget,
                     currentOceanTarget, nextOceanTarget,
                     preTransitionFactor,
                     remaining,
-                    processedThisTick
-            ));
-
-            plugin.getScheduler().runAtEntity(p, task -> flushNudgesForPlayer(p));
+                    processedThisTick);
         }
-    }
 
-    private void tickForPlayer(Player p,
-                               Biome currentTarget, Biome nextTarget,
-                               Biome currentOceanTarget, Biome nextOceanTarget,
-                               double preTransitionFactor,
-                               java.util.concurrent.atomic.AtomicInteger remaining,
-                               Set<Long> processedThisTick) {
-        if (!p.isOnline()) return;
-        if (remaining.get() <= 0) return;
-
-        World w = p.getWorld();
-        if (w.getEnvironment() != World.Environment.NORMAL) return;
-
-        int view = Bukkit.getViewDistance();
-        int radius = Math.min(Math.max(radiusChunksCfg, view + 1), view + 4);
-
-        Location loc = p.getLocation();
-        int pcx = loc.getBlockX() >> 4;
-        int pcz = loc.getBlockZ() >> 4;
-
-        // 1) procesar SIEMPRE el chunk donde está el jugador primero
-        scheduleChunkSpoof(p, w, pcx, pcz,
-                currentTarget, nextTarget,
-                currentOceanTarget, nextOceanTarget,
-                preTransitionFactor,
-                remaining, processedThisTick);
-
-        if (remaining.get() <= 0) return;
-
-        // 2) offsets precomputados (ordenados por distancia)
-        List<Offset> offsets = getBaseOffsets(radius);
-        if (prioritizeView) {
-            // ordenamos por distancia + preferencia de mirada
-            offsets = new ArrayList<>(offsets);
-            Vector look = loc.getDirection().clone();
-            look.setY(0);
-            if (look.lengthSquared() < 1e-4) {
-                look = new Vector(0, 0, 1);
-            } else {
-                look.normalize();
+        if (processed > 0) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                plugin.getScheduler().runAtEntity(p, task -> flushNudgesForPlayer(p));
             }
-            final double lookX = look.getX();
-            final double lookZ = look.getZ();
-            offsets.sort(Comparator
-                    .comparingInt((Offset o) -> o.dist)
-                    .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
-        }
-
-        // 3) aplicar spoof según presupuesto
-        for (Offset off : offsets) {
-            if (remaining.get() <= 0) break;
-
-            int cx = pcx + off.dx;
-            int cz = pcz + off.dz;
-            scheduleChunkSpoof(p, w, cx, cz,
-                    currentTarget, nextTarget,
-                    currentOceanTarget, nextOceanTarget,
-                    preTransitionFactor,
-                    remaining, processedThisTick);
         }
     }
 
@@ -407,7 +390,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
             }
 
             spoofed.add(ck);
-            enqueueNudge(p, w, cx, cz);
+            if (p != null) {
+                enqueueNudge(p, w, cx, cz);
+            }
             remaining.decrementAndGet();
         });
     }
@@ -825,6 +810,9 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
         nudgeQueue.clear();
         nudgeLast.clear();
         lastAppliedTarget.clear();
+        pendingChunks.clear();
+        pendingKeys.clear();
+        lastPlayerChunk.clear();
     }
 
     /**
@@ -881,6 +869,81 @@ public final class BiomeSpoofAdapter implements Listener, Runnable {
                 enqueueNudge(viewer, w, cx, cz);
             }
         }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent e) {
+        Player p = e.getPlayer();
+        enqueueAroundPlayer(p, eventRadiusChunks);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent e) {
+        Location to = e.getTo();
+        Location from = e.getFrom();
+        if (to == null) return;
+
+        int fromCx = from.getBlockX() >> 4;
+        int fromCz = from.getBlockZ() >> 4;
+        int toCx = to.getBlockX() >> 4;
+        int toCz = to.getBlockZ() >> 4;
+        if (fromCx == toCx && fromCz == toCz) return;
+
+        Player p = e.getPlayer();
+        long k = key(p.getWorld(), toCx, toCz);
+        Long last = lastPlayerChunk.put(p.getUniqueId(), k);
+        if (last != null && last == k) return;
+
+        enqueueAroundPlayer(p, eventRadiusChunks);
+    }
+
+    private void enqueueAroundOnlinePlayers(int radius) {
+        if (radius <= 0) return;
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            enqueueAroundPlayer(p, radius);
+        }
+    }
+
+    private void enqueueAroundPlayer(Player p, int radius) {
+        if (p == null || !p.isOnline()) return;
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        Location loc = p.getLocation();
+        int pcx = loc.getBlockX() >> 4;
+        int pcz = loc.getBlockZ() >> 4;
+
+        enqueueChunk(w, pcx, pcz);
+        if (radius <= 0) return;
+
+        List<Offset> offsets = getBaseOffsets(radius);
+        if (prioritizeView) {
+            offsets = new ArrayList<>(offsets);
+            Vector look = loc.getDirection().clone();
+            look.setY(0);
+            if (look.lengthSquared() < 1e-4) {
+                look = new Vector(0, 0, 1);
+            } else {
+                look.normalize();
+            }
+            final double lookX = look.getX();
+            final double lookZ = look.getZ();
+            offsets.sort(Comparator
+                    .comparingInt((Offset o) -> o.dist)
+                    .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
+        }
+
+        for (Offset off : offsets) {
+            int cx = pcx + off.dx;
+            int cz = pcz + off.dz;
+            enqueueChunk(w, cx, cz);
+        }
+    }
+
+    private void enqueueChunk(World w, int cx, int cz) {
+        long k = key(w, cx, cz);
+        if (!pendingKeys.add(k)) return;
+        pendingChunks.add(new ChunkRef(w.getUID(), cx, cz, k));
     }
 
     private void enqueueNudge(Player p, World w, int cx, int cz) {

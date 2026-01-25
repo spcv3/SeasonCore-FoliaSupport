@@ -17,6 +17,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ItemSpawnEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.ItemStack;
 import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.util.Vector;
@@ -48,6 +51,11 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     private boolean cleanupEnabled;
     private boolean fixResidualEnabled;
     private int cleanupMaxRevertPerChunk;
+    private int eventRadiusChunks;
+
+    private final Queue<ChunkRef> pendingChunks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final Set<Long> pendingKeys = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> lastPlayerChunk = new ConcurrentHashMap<>();
 
     // tipos de hojas que vamos a transformar
     private final Set<Material> leafTypes = EnumSet.of(
@@ -70,6 +78,20 @@ public final class AutumnSoilPainter implements Runnable, Listener {
             this.dz = dz;
             this.dist = dist;
             this.invLen = invLen;
+        }
+    }
+
+    private static final class ChunkRef {
+        final UUID worldId;
+        final int cx;
+        final int cz;
+        final long key;
+
+        ChunkRef(UUID worldId, int cx, int cz, long key) {
+            this.worldId = worldId;
+            this.cx = cx;
+            this.cz = cz;
+            this.key = key;
         }
     }
 
@@ -110,6 +132,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
         this.cleanupEnabled = y.getBoolean("autumn_soil.cleanup_enabled", false);
         this.fixResidualEnabled = y.getBoolean("autumn_soil.fix_residual_enabled", false);
         this.cleanupMaxRevertPerChunk = Math.max(0, y.getInt("autumn_soil.cleanup_max_revert_per_chunk", 16));
+        this.eventRadiusChunks = Math.max(0, y.getInt("autumn_soil.event_radius_chunks", 1));
     }
 
     public void register() {
@@ -124,95 +147,51 @@ public final class AutumnSoilPainter implements Runnable, Listener {
     public void unregister() {
         if (task != null) task.cancel();
         task = null;
+        pendingChunks.clear();
+        pendingKeys.clear();
+        lastPlayerChunk.clear();
     }
 
     @Override
     public void run() {
+        if (pendingChunks.isEmpty()) return;
+
         CalendarState st = seasons.getStateCopy();
         gridFlip = !gridFlip; // alternamos patrón cada tick
         boolean localGridFlip = gridFlip;
 
-        int totalBudget = Math.max(1, chunksPerTick);
-        int online = Bukkit.getOnlinePlayers().size();
-        if (online <= 0) return;
-
-        int baseBudget = Math.max(1, totalBudget / online);
-        int extra = totalBudget - (baseBudget * online);
-
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            int budget = baseBudget + (extra-- > 0 ? 1 : 0);
-            plugin.getScheduler().runAtEntity(p, task -> tickForPlayer(p, st, localGridFlip, budget));
-        }
-    }
-
-    private void tickForPlayer(Player p, CalendarState st, boolean localGridFlip, int budget) {
-        if (!p.isOnline() || budget <= 0) return;
-
         Season season = st.season;
         int dayInSeason = computeDayInSeason(st);
 
-        // factor 0..1 de "cuánto queremos pintar" este tick
         double paintFactor = 0.0;
-
         if (season == Season.AUTUMN) {
-            // en otoño queremos árboles completamente amarillos
             paintFactor = 1.0;
         } else if (season == Season.SUMMER) {
-            // pre-otoño: verano días 26–28
             paintFactor = computePreAutumnFactor(dayInSeason);
         }
 
-        World w = p.getWorld();
-        if (w.getEnvironment() != World.Environment.NORMAL) return;
+        boolean doCleanup = (paintFactor <= 0.0) && cleanupEnabled;
+        if (paintFactor <= 0.0 && !doCleanup) return;
 
-        Location loc = p.getLocation();
-        int pcx = loc.getBlockX() >> 4;
-        int pcz = loc.getBlockZ() >> 4;
-
-        // fuera de pre-otoño y otoño -> MODO LIMPIEZA + AUTOREPARACIÓN
-        if (paintFactor <= 0.0) {
-            if (cleanupEnabled) {
-                scheduleCleanupAroundPlayer(p, w, pcx, pcz, budget);
-            }
-            return;
-        }
-
-        // "otoño maduro": desde día 3 queremos que cerca del jugador estén FULL pintados
         boolean matureAutumn = (season == Season.AUTUMN && dayInSeason >= 3);
+        int budget = Math.max(1, chunksPerTick);
 
-        int radius = radiusChunks;
+        int processed = 0;
+        while (budget > 0) {
+            ChunkRef ref = pendingChunks.poll();
+            if (ref == null) break;
+            pendingKeys.remove(ref.key);
+            processed++;
 
-        List<Offset> offsets = getBaseOffsets(radius);
-        if (prioritizeView) {
-            Vector look = loc.getDirection().clone();
-            look.setY(0);
-            if (look.lengthSquared() < 1e-4) {
-                look = new Vector(0, 0, 1);
+            World w = Bukkit.getWorld(ref.worldId);
+            if (w == null || w.getEnvironment() != World.Environment.NORMAL) continue;
+            if (!w.isChunkLoaded(ref.cx, ref.cz)) continue;
+
+            if (doCleanup) {
+                scheduleCleanupForChunk(w, ref.cx, ref.cz);
             } else {
-                look.normalize();
+                scheduleChunkPaint(w, ref.cx, ref.cz, matureAutumn, paintFactor, matureAutumn, localGridFlip);
             }
-            final double lookX = look.getX();
-            final double lookZ = look.getZ();
-            offsets = new ArrayList<>(offsets);
-            offsets.sort(java.util.Comparator
-                    .comparingInt((Offset o) -> o.dist)
-                    .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
-        }
-
-        // 1) siempre procesamos primero el chunk donde está el jugador
-        if (budget > 0) {
-            scheduleChunkPaint(w, pcx, pcz, true, paintFactor, matureAutumn, localGridFlip);
-            budget--;
-        }
-
-        // 2) luego los chunks cercanos, priorizando delante
-        for (Offset off : offsets) {
-            if (budget <= 0) break;
-            int cx = pcx + off.dx;
-            int cz = pcz + off.dz;
-
-            boolean highDetail = matureAutumn && off.dist <= 1; // anillo 1 también full cuando ya vamos en otoño
-            scheduleChunkPaint(w, cx, cz, highDetail, paintFactor, matureAutumn, localGridFlip);
             budget--;
         }
     }
@@ -243,26 +222,94 @@ public final class AutumnSoilPainter implements Runnable, Listener {
         });
     }
 
-    private void scheduleCleanupAroundPlayer(Player p, World w, int pcx, int pcz, int budget) {
-        int radius = radiusChunks;
+    private void scheduleCleanupForChunk(World w, int cx, int cz) {
         int maxRevertPerChunk = cleanupMaxRevertPerChunk;
         if (maxRevertPerChunk <= 0) return;
-
-        for (int cx = pcx - radius; cx <= pcx + radius && budget > 0; cx++) {
-            for (int cz = pcz - radius; cz <= pcz + radius && budget > 0; cz++) {
-                int fcx = cx;
-                int fcz = cz;
-                Location chunkLoc = new Location(w, (fcx << 4) + 8, w.getMinHeight(), (fcz << 4) + 8);
-                plugin.getScheduler().runAtLocation(chunkLoc, task -> {
-                    if (!w.isChunkLoaded(fcx, fcz)) return;
-                    revertSomeLeavesInChunk(w, fcx, fcz, maxRevertPerChunk);
-                    if (fixResidualEnabled) {
-                        fixChunkResidualLeaves(w, fcx, fcz);
-                    }
-                });
-                budget--;
+        Location chunkLoc = new Location(w, (cx << 4) + 8, w.getMinHeight(), (cz << 4) + 8);
+        plugin.getScheduler().runAtLocation(chunkLoc, task -> {
+            if (!w.isChunkLoaded(cx, cz)) return;
+            revertSomeLeavesInChunk(w, cx, cz, maxRevertPerChunk);
+            if (fixResidualEnabled) {
+                fixChunkResidualLeaves(w, cx, cz);
             }
+        });
+    }
+
+    @EventHandler
+    public void onChunkLoad(ChunkLoadEvent e) {
+        enqueueChunk(e.getChunk().getWorld(), e.getChunk().getX(), e.getChunk().getZ());
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent e) {
+        enqueueAroundPlayer(e.getPlayer(), eventRadiusChunks);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent e) {
+        Location to = e.getTo();
+        Location from = e.getFrom();
+        if (to == null) return;
+
+        int fromCx = from.getBlockX() >> 4;
+        int fromCz = from.getBlockZ() >> 4;
+        int toCx = to.getBlockX() >> 4;
+        int toCz = to.getBlockZ() >> 4;
+        if (fromCx == toCx && fromCz == toCz) return;
+
+        Player p = e.getPlayer();
+        long k = key(p.getWorld(), toCx, toCz);
+        Long last = lastPlayerChunk.put(p.getUniqueId(), k);
+        if (last != null && last == k) return;
+
+        enqueueAroundPlayer(p, eventRadiusChunks);
+    }
+
+    private void enqueueAroundPlayer(Player p, int radius) {
+        if (p == null || !p.isOnline()) return;
+        World w = p.getWorld();
+        if (w.getEnvironment() != World.Environment.NORMAL) return;
+
+        Location loc = p.getLocation();
+        int pcx = loc.getBlockX() >> 4;
+        int pcz = loc.getBlockZ() >> 4;
+
+        enqueueChunk(w, pcx, pcz);
+        if (radius <= 0) return;
+
+        List<Offset> offsets = getBaseOffsets(radius);
+        if (prioritizeView) {
+            offsets = new ArrayList<>(offsets);
+            Vector look = loc.getDirection().clone();
+            look.setY(0);
+            if (look.lengthSquared() < 1e-4) {
+                look = new Vector(0, 0, 1);
+            } else {
+                look.normalize();
+            }
+            final double lookX = look.getX();
+            final double lookZ = look.getZ();
+            offsets.sort(java.util.Comparator
+                    .comparingInt((Offset o) -> o.dist)
+                    .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
         }
+
+        for (Offset off : offsets) {
+            int cx = pcx + off.dx;
+            int cz = pcz + off.dz;
+            enqueueChunk(w, cx, cz);
+        }
+    }
+
+    private void enqueueChunk(World w, int cx, int cz) {
+        long k = key(w, cx, cz);
+        if (!pendingKeys.add(k)) return;
+        pendingChunks.add(new ChunkRef(w.getUID(), cx, cz, k));
+    }
+
+    private long key(World w, int cx, int cz) {
+        long k = (((long) cx) & 0xffffffffL) << 32 | (((long) cz) & 0xffffffffL);
+        return k ^ (w.getUID().getMostSignificantBits() ^ w.getUID().getLeastSignificantBits());
     }
 
     /**
