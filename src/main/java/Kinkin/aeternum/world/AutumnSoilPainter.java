@@ -44,6 +44,10 @@ public final class AutumnSoilPainter implements Runnable, Listener {
 
     // probabilidad base de recolorear cada bloque de hojas
     private double leafChancePerBlock;
+    private boolean prioritizeView;
+    private boolean cleanupEnabled;
+    private boolean fixResidualEnabled;
+    private int cleanupMaxRevertPerChunk;
 
     // tipos de hojas que vamos a transformar
     private final Set<Material> leafTypes = EnumSet.of(
@@ -102,6 +106,10 @@ public final class AutumnSoilPainter implements Runnable, Listener {
         this.leafChancePerBlock = y.getDouble("autumn_soil.leaf_chance_per_block", 1.0);
         if (this.leafChancePerBlock < 0.0) this.leafChancePerBlock = 0.0;
         if (this.leafChancePerBlock > 1.0) this.leafChancePerBlock = 1.0;
+        this.prioritizeView = y.getBoolean("autumn_soil.prioritize_view", false);
+        this.cleanupEnabled = y.getBoolean("autumn_soil.cleanup_enabled", false);
+        this.fixResidualEnabled = y.getBoolean("autumn_soil.fix_residual_enabled", false);
+        this.cleanupMaxRevertPerChunk = Math.max(0, y.getInt("autumn_soil.cleanup_max_revert_per_chunk", 16));
     }
 
     public void register() {
@@ -163,30 +171,33 @@ public final class AutumnSoilPainter implements Runnable, Listener {
 
         // fuera de pre-otoño y otoño -> MODO LIMPIEZA + AUTOREPARACIÓN
         if (paintFactor <= 0.0) {
-            scheduleCleanupAroundPlayer(p, w, pcx, pcz, budget);
+            if (cleanupEnabled) {
+                scheduleCleanupAroundPlayer(p, w, pcx, pcz, budget);
+            }
             return;
         }
 
         // "otoño maduro": desde día 3 queremos que cerca del jugador estén FULL pintados
         boolean matureAutumn = (season == Season.AUTUMN && dayInSeason >= 3);
 
-        // dirección de mirada (para ordenar como BiomeSpoofAdapter)
-        Vector look = loc.getDirection().clone();
-        look.setY(0);
-        if (look.lengthSquared() < 1e-4) {
-            look = new Vector(0, 0, 1);
-        } else {
-            look.normalize();
-        }
-
         int radius = radiusChunks;
 
-        List<Offset> offsets = new ArrayList<>(getBaseOffsets(radius));
-        final double lookX = look.getX();
-        final double lookZ = look.getZ();
-        offsets.sort(java.util.Comparator
-                .comparingInt((Offset o) -> o.dist)
-                .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
+        List<Offset> offsets = getBaseOffsets(radius);
+        if (prioritizeView) {
+            Vector look = loc.getDirection().clone();
+            look.setY(0);
+            if (look.lengthSquared() < 1e-4) {
+                look = new Vector(0, 0, 1);
+            } else {
+                look.normalize();
+            }
+            final double lookX = look.getX();
+            final double lookZ = look.getZ();
+            offsets = new ArrayList<>(offsets);
+            offsets.sort(java.util.Comparator
+                    .comparingInt((Offset o) -> o.dist)
+                    .thenComparingDouble(o -> -((o.dx * lookX + o.dz * lookZ) * o.invLen)));
+        }
 
         // 1) siempre procesamos primero el chunk donde está el jugador
         if (budget > 0) {
@@ -218,6 +229,7 @@ public final class AutumnSoilPainter implements Runnable, Listener {
                     list.add(new Offset(dx, dz, dist, invLen));
                 }
             }
+            list.sort(Comparator.comparingInt(o -> o.dist));
             return list;
         });
     }
@@ -233,7 +245,8 @@ public final class AutumnSoilPainter implements Runnable, Listener {
 
     private void scheduleCleanupAroundPlayer(Player p, World w, int pcx, int pcz, int budget) {
         int radius = radiusChunks;
-        int maxRevertPerChunk = 64;
+        int maxRevertPerChunk = cleanupMaxRevertPerChunk;
+        if (maxRevertPerChunk <= 0) return;
 
         for (int cx = pcx - radius; cx <= pcx + radius && budget > 0; cx++) {
             for (int cz = pcz - radius; cz <= pcz + radius && budget > 0; cz++) {
@@ -243,7 +256,9 @@ public final class AutumnSoilPainter implements Runnable, Listener {
                 plugin.getScheduler().runAtLocation(chunkLoc, task -> {
                     if (!w.isChunkLoaded(fcx, fcz)) return;
                     revertSomeLeavesInChunk(w, fcx, fcz, maxRevertPerChunk);
-                    fixChunkResidualLeaves(w, fcx, fcz);
+                    if (fixResidualEnabled) {
+                        fixChunkResidualLeaves(w, fcx, fcz);
+                    }
                 });
                 budget--;
             }

@@ -104,11 +104,15 @@ biome_spoof:
 
 autumn_soil:
   enabled: true
-  tick_period_ticks: 10
-  attempts_per_tick: 4      # entre más alto, más rápido pinta / higher = faster painting
+  tick_period_ticks: 40
+  attempts_per_tick: 1      # entre más alto, más rápido pinta / higher = faster painting
   chance_per_column: 1.0    # pinta TODAS las columnas / paints ALL columns
-  radius_chunks: 4
-  leaf_chance_per_block: 1.0 # pinta TODAS las hojas / paints ALL leaves
+  radius_chunks: 3
+  leaf_chance_per_block: 0.6 # reduce work per chunk
+  prioritize_view: false
+  cleanup_enabled: false
+  fix_residual_enabled: false
+  cleanup_max_revert_per_chunk: 16
 
 autumn_foliage:
   enabled: true
